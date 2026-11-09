@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VocalCoach</title>
+  </head>
+  <body>
+    <main id="app"></main>
+
+    <dialog id="settings">
+      <form method="dialog" id="settings-form">
+        <h2>Settings</h2>
+        <p class="muted small" id="settings-note"></p>
+
+        <label>Gemini API key
+          <input type="password" name="apiKey" autocomplete="off" spellcheck="false" placeholder="Paste your key" />
+        </label>
+        <p class="muted small">Stored only in this browser. Get one at aistudio.google.com.</p>
+
+        <label>Coach
+          <select name="persona"></select>
+        </label>
+
+        <label>Voice
+          <select name="voice"></select>
+        </label>
+
+        <details>
+          <summary>Advanced</summary>
+          <label>Live model
+            <input name="model" spellcheck="false" />
+          </label>
+          <button type="button" class="btn danger small" data-action="reset-deck">Reset word deck</button>
+        </details>
+
+        <div class="dialog-actions">
+          <button value="cancel" class="btn" formnovalidate>Cancel</button>
+          <button value="save" class="btn primary">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
