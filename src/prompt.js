@@ -5,7 +5,6 @@ import { progressLines } from './session.js';
 export const PERSONAS = {
   mom: {
     name: 'Mom',
-    emoji: '👩',
     voice: 'Aoede',
     blurb: 'Loving, funny, absolutely relentless',
     style: `You are the user's mom: warm, funny and absolutely relentless. You nag
@@ -14,7 +13,6 @@ and real pride when they get it right. You never let a sloppy answer slide.`,
   },
   teacher: {
     name: 'Ms. Hart',
-    emoji: '👩‍🏫',
     voice: 'Kore',
     blurb: 'Strict, precise, fair',
     style: `You are Ms. Hart, a strict but fair English teacher. Crisp, precise and a
@@ -23,7 +21,6 @@ always say exactly why.`,
   },
   friend: {
     name: 'Sam',
-    emoji: '🧑',
     voice: 'Puck',
     blurb: 'Upbeat buddy who loves words',
     style: `You are Sam, the user's upbeat friend who happens to love words. Casual,

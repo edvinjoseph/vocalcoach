@@ -255,3 +255,36 @@ dialog details .btn { margin-top: 12px; }
   .words li { align-items: flex-start; }
   .w-meta { flex-direction: column; align-items: flex-end; gap: 4px; }
 }
+
+/* ── Polish pass ─────────────────────────────────────────────────────────── */
+
+.ic { flex-shrink: 0; vertical-align: -0.2em; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; transition: transform 0.12s, background-color 0.15s, border-color 0.15s; }
+.btn:hover:not(:disabled) { transform: translateY(-1px); }
+.btn:active:not(:disabled) { transform: translateY(1px) scale(0.985); }
+.btn.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, var(--text)); }
+.icon-btn { display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; transition: border-color 0.15s, color 0.15s, transform 0.12s; }
+.icon-btn:hover { border-color: var(--muted); }
+.icon-btn:active { transform: scale(0.94); }
+.link { min-height: 44px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input:focus-visible, select:focus-visible { outline-offset: 0; border-color: var(--accent); }
+
+h1, h2, .big, .ring-name { letter-spacing: -0.015em; }
+.streak { display: flex; align-items: center; gap: 6px; color: var(--accent); }
+.streak span { color: var(--text); font-weight: 700; }
+.streak small { font-weight: 500; color: var(--muted); font-size: 0.8rem; }
+
+.avatar { font-weight: 700; font-size: 1.6rem; letter-spacing: 0; color: var(--accent-ink); background: var(--accent); }
+.avatar.ringing { font-size: 3.6rem; }
+
+.words li { min-height: 56px; }
+.card { transition: border-color 0.2s; }
+
+/* The first screen enters once on load, never on scroll. */
+@keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+[data-enter] { animation: enter 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

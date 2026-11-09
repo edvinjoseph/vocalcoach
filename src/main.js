@@ -4,6 +4,7 @@ import { createSession, grade, isPassed, allDone, remaining, currentFocus } from
 import { PERSONAS, VOICES, TOOLS, buildPrompt, openingCue, nudgeCue, RESUME_CUE } from './prompt.js';
 import { AudioIO, LiveCall } from './live.js';
 import { Ringer, nextOccurrence } from './ringer.js';
+import { icons } from './icons.js';
 import { loadSettings, saveSettings, recordStudyDay, currentStreak, DEFAULT_MODEL } from './storage.js';
 
 const TITLE = 'VocalCoach';
@@ -28,6 +29,7 @@ const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 
 const persona = () => PERSONAS[settings.persona] || PERSONAS.mom;
+const mark = (p) => esc(p.name.replace(/^Ms.s*/, '').charAt(0));
 
 // Any tap unlocks audio, so a later alarm can ring without a fresh gesture.
 document.addEventListener('pointerdown', () => ringer.unlock());
@@ -68,21 +70,21 @@ function renderHome() {
   $app.innerHTML = `
     <header class="top">
       <div class="brand"><span class="logo" aria-hidden="true"></span>VocalCoach</div>
-      <button class="icon-btn" data-action="settings" aria-label="Settings">⚙</button>
+      <button class="icon-btn" data-action="settings" aria-label="Open settings">${icons.gear()}</button>
     </header>
 
     ${settings.apiKey ? '' : `<div class="banner">Add your Gemini API key in <button class="link" data-action="settings">Settings</button> to start a call.</div>`}
 
-    <section class="card hero">
+    <section class="card hero" data-enter>
       <div class="hero-row">
         <div>
           <div class="eyebrow">Today</div>
           <div class="big">${dueCount} due · ${newCount} new</div>
         </div>
-        <div class="streak" title="Days in a row with a finished call">🔥 ${currentStreak()}</div>
+        <div class="streak" title="Days in a row with a finished call">${icons.flame(18)}<span>${currentStreak()}<small> day streak</small></span></div>
       </div>
       <p class="muted">${esc(p.name)} will quiz you on: <strong>${preview.map((w) => esc(w.word)).join(', ')}</strong></p>
-      <button class="btn primary wide" data-action="practice">📞 Start practice call</button>
+      <button class="btn primary wide" data-action="practice">${icons.phone(18)} Start practice call</button>
       <p class="muted small">For each word you'll say it from its meaning, then use it in your own sentence.</p>
     </section>
 
@@ -94,15 +96,15 @@ function renderHome() {
         <label class="switch"><input type="checkbox" id="alarm-enabled" ${settings.alarm.enabled ? 'checked' : ''} /><span>On</span></label>
       </div>
       <div class="muted small">${alarmLabel()}</div>
-      <button class="btn wide" data-action="test-alarm" ${testAlarmAt ? 'disabled' : ''}>${testAlarmAt ? 'Ringing in a few seconds…' : 'Test: ring in 10 seconds'}</button>
+      <button class="btn wide" data-action="test-alarm" ${testAlarmAt ? 'disabled' : ''}>${testAlarmAt ? 'Ringing in a few seconds…' : 'Test the alarm'}</button>
     </section>
 
     <section class="card">
       <div class="eyebrow">Your words (${deck.length})</div>
       <form id="add-form" class="add-form">
-        <input name="word" placeholder="Word" required autocomplete="off" />
-        <input name="definition" placeholder="Meaning (short)" required autocomplete="off" />
-        <input name="example" placeholder="Example sentence (optional)" autocomplete="off" />
+        <label>Word<input name="word" required autocomplete="off" /></label>
+        <label>Meaning<input name="definition" required autocomplete="off" placeholder="Short, plain English" /></label>
+        <label class="full">Example sentence <span class="muted">(optional)</span><input name="example" autocomplete="off" /></label>
         <button class="btn" type="submit">Add word</button>
       </form>
       <p class="muted small">During a call you can also say "add the word …".</p>
@@ -116,7 +118,7 @@ function renderHome() {
             <div class="w-meta">
               <span class="boxes" title="Box ${w.box} of ${MAX_BOX}">${boxDots(w.box)}</span>
               <span class="due ${isDue(w, now) ? 'is-due' : ''}">${dueLabel(w, now)}</span>
-              <button class="icon-btn small" data-action="delete" data-id="${w.id}" aria-label="Delete ${esc(w.word)}">✕</button>
+              <button class="icon-btn small" data-action="delete" data-id="${w.id}" aria-label="Remove ${esc(w.word)}">${icons.trash(16)}</button>
             </div>
           </li>`).join('')}
       </ul>
@@ -142,10 +144,10 @@ function renderRing() {
   const p = persona();
   $app.innerHTML = `
     <div class="ring">
-      <div class="avatar ringing" aria-hidden="true">${p.emoji}</div>
+      <div class="avatar ringing" aria-hidden="true">${mark(p)}</div>
       <div class="ring-name">${esc(p.name)}</div>
       <div class="muted">is calling…</div>
-      <button class="btn answer" data-action="answer">Answer</button>
+      <button class="btn answer" data-action="answer">${icons.phone(22)} Answer the call</button>
       <p class="muted small">There's no decline button. That's the point.</p>
     </div>`;
 }
@@ -277,7 +279,7 @@ function handleTool(c, name, args) {
     }
     c.endAccepted = true;
     c.recap = String(args.recap || '');
-    setStatus(c, 'All words passed! 🎉');
+    setStatus(c, 'All words passed');
     return { response: { ok: true, result: 'call_ending', instruction: 'Give your short send-off now.' }, goodbye: true };
   }
 
@@ -370,7 +372,7 @@ function renderCall() {
   $app.innerHTML = `
     <div class="call">
       <div class="call-head">
-        <div class="avatar" id="avatar" aria-hidden="true">${c.persona.emoji}</div>
+        <div class="avatar" id="avatar" aria-hidden="true">${mark(c.persona)}</div>
         <div class="call-who">
           <div class="call-name">${esc(c.persona.name)}${c.mode === 'alarm' ? ' · wake-up call' : ''}</div>
           <div class="call-status" id="call-status">${esc(c.status)}</div>
@@ -435,7 +437,7 @@ function updateLiveBits(c) {
 function renderSummary() {
   const s = summary;
   const titles = {
-    passed: s.mode === 'alarm' ? "You're up, and you passed 🎉" : 'Nice work 🎉',
+    passed: s.mode === 'alarm' ? "You're up, and you passed" : 'Nice work',
     hungup: 'Call ended early',
     timeout: 'Time ran out',
     error: 'The call failed',
@@ -451,12 +453,12 @@ function renderSummary() {
           <li>
             <span class="r-word">${esc(r.word)}</span>
             <span class="r-res ${r.passed ? (r.firstTry ? 'good' : 'ok') : r.touched ? 'bad' : ''}">
-              ${r.passed ? (r.firstTry ? 'First try' : 'Got there') : r.touched ? 'Not yet' : 'Not reached'}
+              ${r.passed ? (r.firstTry ? 'First try' : 'Passed') : r.touched ? 'Not yet' : 'Not reached'}
             </span>
             <span class="muted small">${r.touched ? `box ${r.before} → ${r.after} · next: ${r.next}` : 'unchanged'}</span>
           </li>`).join('')}
       </ul>
-      <button class="btn primary wide" data-action="home">Done</button>
+      <button class="btn primary wide" data-action="home">Back to my words</button>
     </section>`;
 }
 
@@ -465,7 +467,7 @@ function renderSummary() {
 function openSettings(note = '') {
   document.getElementById('settings-note').textContent = note;
   $form.persona.innerHTML = Object.entries(PERSONAS)
-    .map(([id, p]) => `<option value="${id}">${p.emoji} ${esc(p.name)}: ${esc(p.blurb)}</option>`)
+    .map(([id, p]) => `<option value="${id}">${esc(p.name)}: ${esc(p.blurb)}</option>`)
     .join('');
   $form.voice.innerHTML = `<option value="">Coach's own voice</option>` + VOICES.map((v) => `<option>${v}</option>`).join('');
   $form.apiKey.value = settings.apiKey;
