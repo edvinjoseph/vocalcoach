@@ -1,5 +1,5 @@
 import './style.css';
-import { loadDeck, saveDeck, resetDeck, pickSessionWords, applyResult, addWord, removeWord, dueLabel, isDue, MAX_BOX } from './deck.js';
+import { loadDeck, saveDeck, resetDeck, pickSessionWords, applyResult, addWord, removeWord, dueLabel, isDue } from './deck.js';
 import { createSession, grade, isPassed, allDone, remaining, currentFocus } from './session.js';
 import { PERSONAS, VOICES, TOOLS, buildPrompt, openingCue, nudgeCue, RESUME_CUE } from './prompt.js';
 import { AudioIO, LiveCall } from './live.js';
@@ -14,10 +14,8 @@ const REDIAL_DELAY_MS = 2000;
 const ALARM_CATCH_UP_MS = 15 * 60 * 1000;
 
 const $app = document.getElementById('app');
-const $dialog = document.getElementById('settings');
 const $phone = document.getElementById('phone');
 const $screen = document.getElementById('screen');
-const $form = document.getElementById('settings-form');
 
 const ringer = new Ringer();
 let deck = loadDeck();
@@ -26,6 +24,10 @@ let view = 'home'; // 'home' | 'ring' | 'call' | 'summary'
 let call = null;
 let summary = null;
 let testAlarmAt = null;
+let tab = 'today'; // 'today' | 'words' | 'alarm' | 'settings'
+let editing = false; // Words tab edit mode
+let adding = false; // Add-word sheet
+let declines = 0; // how many times the incoming call was declined
 
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
@@ -51,86 +53,153 @@ function render() {
 
 // ── Home ────────────────────────────────────────────────────────────────────
 
-function boxDots(box) {
-  return Array.from({ length: MAX_BOX }, (_, i) => `<i class="${i < box ? 'on' : ''}"></i>`).join('');
-}
-
 function alarmLabel() {
   const a = settings.alarm;
   if (!a.enabled || !a.nextAt) return 'Off';
   const d = new Date(a.nextAt);
-  const today = new Date();
-  const when = d.toDateString() === today.toDateString() ? 'today' : 'tomorrow';
+  const when = d.toDateString() === new Date().toDateString() ? 'today' : 'tomorrow';
   return `Rings ${when} at ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
 }
 
-function renderHome() {
+const TABS = [
+  ['today', 'Today', () => icons.calendar(25)],
+  ['words', 'Words', () => icons.book(25)],
+  ['alarm', 'Alarm', () => icons.alarm(25)],
+  ['settings', 'Settings', () => icons.gear(25)],
+];
+
+function tabBar() {
+  return `<nav class="tabbar" aria-label="Tabs">${TABS.map(([id, label, icon]) =>
+    `<button class="tab" data-action="tab" data-tab="${id}" ${tab === id ? 'aria-current="page"' : ''}>${icon()}<span>${label}</span></button>`).join('')}</nav>`;
+}
+
+function todayTab() {
   const now = Date.now();
   const p = persona();
   const preview = pickSessionWords(deck, now, 'practice');
   const dueCount = deck.filter((w) => isDue(w, now)).length;
   const newCount = deck.filter((w) => w.box === 0).length;
   const streak = currentStreak();
+  const date = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+  return `
+    <div class="eyebrow-date">${esc(date)}</div>
+    <h1 class="large-title">Today</h1>
+
+    <div class="group-title">Next call</div>
+    <div class="group">
+      <div class="row">
+        <div class="avatar" aria-hidden="true">${esc(p.name.replace(/^Ms\.\s*/, '').charAt(0))}</div>
+        <div class="row-main"><div class="row-title strong">${esc(p.name)}</div><div class="row-sub">Practice call</div></div>
+      </div>
+      ${preview.map((w) => `
+        <div class="row">
+          <div class="row-main"><div class="row-title">${esc(w.word)}</div></div>
+          <span class="word-tag ${w.box === 0 ? 'new' : ''}">${w.box === 0 ? 'New' : 'Review'}</span>
+        </div>`).join('')}
+    </div>
+    <button class="btn-fill" data-action="practice">${icons.phone(20)} Call me about these</button>
+    <div class="group-foot">${effectiveKey(settings)
+      ? `${esc(p.name)} gives you the meaning. You say the word, then use it in a sentence of your own.`
+      : 'Add your Gemini API key in Settings to start a call.'}</div>
+
+    <div class="group-title">Progress</div>
+    <div class="group">
+      <div class="row"><span>To review</span><span class="row-trail">${dueCount}</span></div>
+      <div class="row"><span>New words</span><span class="row-trail">${newCount}</span></div>
+      <div class="row"><span>Day streak</span><span class="row-trail">${streak}</span></div>
+    </div>`;
+}
+
+function wordsTab() {
+  const now = Date.now();
   const sorted = [...deck].sort((a, b) => {
     const rank = (w) => (isDue(w, now) ? 0 : w.box === 0 ? 1 : 2);
     return rank(a) - rank(b) || a.dueAt - b.dueAt || a.word.localeCompare(b.word);
   });
+  return `
+    <div class="nav">
+      <button class="text-btn ${editing ? 'bold' : ''}" data-action="edit">${editing ? 'Done' : 'Edit'}</button>
+      <button class="circle-btn" data-action="add-open" aria-label="Add a word">${icons.plus(20)}</button>
+    </div>
+    <h1 class="large-title">Words</h1>
+    <div class="group">
+      ${sorted.map((w) => `
+        <div class="row">
+          ${editing ? `<button class="minus" data-action="delete" data-id="${w.id}" aria-label="Remove ${esc(w.word)}"></button>` : ''}
+          <div class="row-main"><div class="row-title">${esc(w.word)}</div><div class="row-sub">${esc(w.definition)}</div></div>
+          <span class="row-trail small ${isDue(w, now) ? 'due' : ''}">${dueLabel(w, now)}</span>
+        </div>`).join('')}
+    </div>
+    <div class="group-foot">${deck.length} words. In a call you can also say "add the word …".</div>`;
+}
 
-  $app.innerHTML = `
-    <header class="top">
-      <span class="wordmark">VocalCoach</span>
-      <button class="icon-btn" data-action="settings" aria-label="Open settings">${icons.gear()}</button>
-    </header>
+function alarmTab() {
+  const p = persona();
+  return `
+    <h1 class="large-title" style="padding-top:14px">Alarm</h1>
+    <div class="group">
+      <div class="row"><span class="row-label">Time</span><input class="time-pill" type="time" id="alarm-time" value="${settings.alarm.time}" aria-label="Alarm time" /></div>
+      <div class="row"><label for="alarm-enabled" style="flex:1">Wake-up call</label><input class="switch" type="checkbox" id="alarm-enabled" ${settings.alarm.enabled ? 'checked' : ''} /></div>
+    </div>
+    <div class="group-foot">${alarmLabel()}. ${esc(p.name)} rings at this time and keeps ringing. The call only ends once you've passed your words. Keep this page open.</div>
+    <div class="group-title"></div>
+    <div class="group">
+      <div class="row"><button class="row-btn" data-action="test-alarm" ${testAlarmAt ? 'disabled' : ''}>${testAlarmAt ? 'Ringing in a few seconds…' : 'Test the alarm'}</button></div>
+    </div>`;
+}
 
-    ${effectiveKey(settings) ? '' : `<p class="notice">Add your Gemini API key in <button class="link" data-action="settings">Settings</button> to start a call.</p>`}
-
-    <section class="next" data-enter>
-      <p class="tally">${dueCount} to review, ${newCount} new${streak ? `, ${streak}-day streak` : ''}</p>
-      <h1 class="lineup" aria-label="Words for your next call">
-        ${preview.map((w) => `<span>${esc(w.word)}</span>`).join('')}
-      </h1>
-      <button class="btn primary" data-action="practice">${icons.phone(18)} Call me about these</button>
-      <p class="hint">${esc(p.name)} gives you the meaning. You say the word, then use it in a sentence of your own.</p>
-    </section>
-
-    <section class="block">
-      <h2>Wake-up call</h2>
-      <p class="hint">${esc(p.name)} rings at this time and keeps ringing. The call only ends once you've passed your words. Keep this tab open.</p>
-      <div class="alarm-row">
-        <input type="time" id="alarm-time" value="${settings.alarm.time}" aria-label="Alarm time" />
-        <label class="switch"><input type="checkbox" id="alarm-enabled" ${settings.alarm.enabled ? 'checked' : ''} /><span>Alarm on</span></label>
+function settingsTab() {
+  const p = persona();
+  return `
+    <h1 class="large-title" style="padding-top:14px">Settings</h1>
+    <div class="group-title">Coach</div>
+    <div class="group">
+      <div class="row"><div class="seg" role="radiogroup" aria-label="Coach">
+        ${Object.entries(PERSONAS).map(([id, x]) => `<button role="radio" aria-checked="${settings.persona === id}" data-action="persona" data-id="${id}">${esc(x.name)}</button>`).join('')}
+      </div></div>
+      <div class="row">
+        <span class="row-label">Voice</span>
+        <select data-setting="voice" aria-label="Voice">
+          <option value="">${esc(p.name)}'s own</option>
+          ${VOICES.map((v) => `<option ${settings.voice === v ? 'selected' : ''}>${v}</option>`).join('')}
+        </select>
       </div>
-      <p class="hint">${alarmLabel()}</p>
-      <button class="btn" data-action="test-alarm" ${testAlarmAt ? 'disabled' : ''}>${testAlarmAt ? 'Ringing in a few seconds…' : 'Test the alarm'}</button>
-    </section>
+    </div>
+    <div class="group-foot">${esc(p.blurb)}.</div>
 
-    <section class="block">
-      <h2>Your words <span class="count">${deck.length}</span></h2>
-      <details class="adder">
-        <summary>Add a word</summary>
-        <form id="add-form" class="add-form">
-          <label>Word<input name="word" required autocomplete="off" /></label>
-          <label>Meaning<input name="definition" required autocomplete="off" placeholder="Short, plain English" /></label>
-          <label class="full">Example sentence <span class="muted">(optional)</span><input name="example" autocomplete="off" /></label>
-          <button class="btn" type="submit">Add word</button>
-        </form>
-        <p class="hint">In a call you can also say "add the word …".</p>
-      </details>
-      <ul class="words">
-        ${sorted.map((w) => `
-          <li>
-            <div class="w-main">
-              <div class="w-word">${esc(w.word)}</div>
-              <div class="w-def">${esc(w.definition)}</div>
-            </div>
-            <div class="w-meta">
-              <span class="boxes" role="img" aria-label="Box ${w.box} of ${MAX_BOX}">${boxDots(w.box)}</span>
-              <span class="due ${isDue(w, now) ? 'is-due' : ''}">${dueLabel(w, now)}</span>
-              <button class="icon-btn small" data-action="delete" data-id="${w.id}" aria-label="Remove ${esc(w.word)}">${icons.trash(16)}</button>
-            </div>
-          </li>`).join('')}
-      </ul>
-    </section>`;
+    <div class="group-title">Gemini</div>
+    <div class="group">
+      <div class="row"><span class="row-label">API key</span><input type="password" data-setting="apiKey" value="${esc(settings.apiKey)}" placeholder="${BUILT_IN_KEY ? 'Built in' : 'Required'}" autocomplete="off" spellcheck="false" /></div>
+      <div class="row"><span class="row-label">Model</span><input type="text" data-setting="model" value="${esc(settings.model || DEFAULT_MODEL)}" spellcheck="false" /></div>
+    </div>
+    <div class="group-foot">${BUILT_IN_KEY ? 'This site has a built-in key. Enter your own only if you want to use yours instead. It is stored only in this browser.' : 'Stored only in this browser.'}</div>
+
+    <div class="group-title"></div>
+    <div class="group"><div class="row"><button class="row-btn red" data-action="reset-deck">Reset word deck</button></div></div>`;
+}
+
+function addSheet() {
+  return `
+    <div class="scrim" data-action="add-close"></div>
+    <form class="sheet" id="add-form" role="dialog" aria-label="New word">
+      <div class="sheet-bar">
+        <button type="button" class="text-btn" data-action="add-close">Cancel</button>
+        <span class="sheet-title">New Word</span>
+        <button type="submit" class="text-btn bold">Add</button>
+      </div>
+      <div class="group-title"></div>
+      <div class="group">
+        <div class="row"><span class="row-label">Word</span><input type="text" name="word" required autocomplete="off" autocapitalize="none" placeholder="ephemeral" /></div>
+        <div class="row"><span class="row-label">Meaning</span><input type="text" name="definition" required autocomplete="off" placeholder="Short, plain English" /></div>
+        <div class="row"><span class="row-label">Example</span><input type="text" name="example" autocomplete="off" placeholder="Optional" /></div>
+      </div>
+    </form>`;
+}
+
+function renderHome() {
+  const body = { today: todayTab, words: wordsTab, alarm: alarmTab, settings: settingsTab }[tab]();
+  $app.innerHTML = `<div data-enter-tab>${body}</div>${tabBar()}${adding ? addSheet() : ''}`;
+  if (adding) $app.querySelector('input[name=word]')?.focus();
 }
 
 // ── Ringing ─────────────────────────────────────────────────────────────────
@@ -152,10 +221,13 @@ function renderRing() {
   const p = persona();
   $app.innerHTML = `
     <div class="ring" role="alertdialog" aria-label="${esc(p.name)} is calling">
-      <p class="ring-label">Incoming call</p>
       <h1 class="ring-name">${esc(p.name)}</h1>
-      <button class="answer" data-action="answer">${icons.phone(26)} Answer the call</button>
-      <p class="ring-note">Tap to answer, allow the microphone, and say hello.</p>
+      <div class="ring-sub">VocalCoach audio…</div>
+      <div class="ring-actions">
+        <div class="ring-key"><button class="ring-btn decline" data-action="decline" aria-label="Decline">${icons.phoneDown(34)}</button><span>Decline</span></div>
+        <div class="ring-key"><button class="ring-btn accept" data-action="answer" aria-label="Accept">${icons.phone(34)}</button><span>Accept</span></div>
+      </div>
+      <p class="ring-note">Accept, allow the microphone, and say hello.</p>
     </div>`;
 }
 
@@ -164,7 +236,9 @@ function renderRing() {
 async function startCall(mode) {
   if (call) return;
   if (!effectiveKey(settings)) {
-    openSettings('Add your Gemini API key to start a call.');
+    tab = 'settings';
+    view = 'home';
+    render();
     return;
   }
   const words = pickSessionWords(deck, Date.now(), mode);
@@ -470,57 +544,24 @@ function renderSummary() {
     error: 'The call failed',
   };
   $app.innerHTML = `
-    <section class="summary" data-enter>
-      <p class="tally">${esc(s.persona.name)}, ${s.mode === 'alarm' ? 'wake-up call' : 'practice call'}</p>
-      <h1>${titles[s.outcome] || 'Call ended'}</h1>
-      ${s.detail ? `<p class="error">${esc(s.detail)}</p>` : ''}
-      ${s.recap ? `<p class="recap">${esc(s.recap)}</p>` : ''}
-      <ul class="results">
+    <section class="summary">
+      <div class="eyebrow-date" style="padding-top:14px">${esc(s.persona.name)}, ${s.mode === 'alarm' ? 'wake-up call' : 'practice call'}</div>
+      <h1 class="large-title">${titles[s.outcome] || 'Call ended'}</h1>
+      ${s.detail ? `<div class="error-card">${esc(s.detail)}</div>` : ''}
+      <div class="group">
         ${s.results.map((r) => `
-          <li>
-            <span class="r-word">${esc(r.word)}</span>
-            <span class="r-res ${r.passed ? (r.firstTry ? 'good' : 'ok') : r.touched ? 'bad' : ''}">
-              ${r.passed ? (r.firstTry ? 'First try' : 'Passed') : r.touched ? 'Not yet' : 'Not reached'}
-            </span>
-            <span class="r-next">${r.touched ? `Box ${r.before} to ${r.after}. Next: ${r.next}.` : 'Unchanged.'}</span>
-          </li>`).join('')}
-      </ul>
-      <button class="btn primary" data-action="home">Back to my words</button>
+          <div class="row">
+            <div class="row-main">
+              <div class="row-title">${esc(r.word)}</div>
+              <div class="row-sub">${r.touched ? `Box ${r.before} to ${r.after}. Next: ${esc(r.next)}` : 'Unchanged'}</div>
+            </div>
+            <span class="${r.passed ? (r.firstTry ? 'res-good' : 'res-ok') : r.touched ? 'res-bad' : 'res-ok'}">${r.passed ? (r.firstTry ? 'First try' : 'Passed') : r.touched ? 'Not yet' : 'Not reached'}</span>
+          </div>`).join('')}
+      </div>
+      ${s.recap ? `<div class="group-foot">${esc(s.recap)}</div>` : ''}
+      <button class="btn-fill" data-action="home">Done</button>
     </section>`;
 }
-
-// ── Settings ────────────────────────────────────────────────────────────────
-
-function openSettings(note = '') {
-  document.getElementById('settings-note').textContent = note || (BUILT_IN_KEY ? 'This site has a built-in key. Paste your own below only if you want to use yours instead.' : '');
-  $form.persona.innerHTML = Object.entries(PERSONAS)
-    .map(([id, p]) => `<option value="${id}">${esc(p.name)}: ${esc(p.blurb)}</option>`)
-    .join('');
-  $form.voice.innerHTML = `<option value="">Coach's own voice</option>` + VOICES.map((v) => `<option>${v}</option>`).join('');
-  $form.apiKey.value = settings.apiKey;
-  $form.persona.value = settings.persona;
-  $form.voice.value = settings.voice;
-  $form.model.value = settings.model || DEFAULT_MODEL;
-  $dialog.show();
-}
-
-$dialog.addEventListener('close', () => {
-  if ($dialog.returnValue !== 'save') return;
-  settings.apiKey = $form.apiKey.value.trim();
-  settings.persona = $form.persona.value;
-  settings.voice = $form.voice.value;
-  settings.model = $form.model.value.trim() || DEFAULT_MODEL;
-  saveSettings(settings);
-  render();
-});
-
-$form.addEventListener('click', (e) => {
-  if (e.target.closest('[data-action="reset-deck"]') && confirm('Reset the deck to the starter words? Your progress will be lost.')) {
-    deck = resetDeck();
-    $dialog.close();
-    render();
-  }
-});
 
 // ── Events ──────────────────────────────────────────────────────────────────
 
@@ -528,13 +569,30 @@ $app.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const action = el.dataset.action;
-  if (action === 'settings') openSettings();
-  else if (action === 'practice') startCall('practice');
+
+  if (action === 'tab') {
+    tab = el.dataset.tab;
+    editing = false;
+    adding = false;
+    render();
+    $app.scrollTop = 0;
+  } else if (action === 'practice') startCall('practice');
   else if (action === 'answer') {
     ringer.stop();
     document.title = TITLE;
     view = 'home';
     startCall('alarm').then(() => { if (!call && view === 'home') render(); });
+  } else if (action === 'decline') {
+    // Declining doesn't get you out of it: she calls back.
+    ringer.stop();
+    document.title = TITLE;
+    view = 'home';
+    tab = 'today';
+    render();
+    if (declines < 2) {
+      declines += 1;
+      setTimeout(() => { if (view === 'home' && !call) ring(); }, 6000);
+    }
   } else if (action === 'mute') {
     if (call) {
       call.muted = !call.muted;
@@ -545,23 +603,47 @@ $app.addEventListener('click', (e) => {
     if (call) endCall(call, 'hungup');
   } else if (action === 'home') {
     view = 'home';
+    tab = 'today';
     render();
   } else if (action === 'test-alarm') {
     ringer.unlock();
     testAlarmAt = Date.now() + 10000;
     render();
+  } else if (action === 'edit') {
+    editing = !editing;
+    render();
+  } else if (action === 'add-open') {
+    adding = true;
+    render();
+  } else if (action === 'add-close') {
+    adding = false;
+    render();
   } else if (action === 'delete') {
-    const w = deck.find((x) => x.id === el.dataset.id);
-    if (w && confirm(`Remove "${w.word}" from your deck?`)) {
-      removeWord(deck, w.id);
-      saveDeck(deck);
+    removeWord(deck, el.dataset.id);
+    saveDeck(deck);
+    render();
+  } else if (action === 'persona') {
+    settings.persona = el.dataset.id;
+    saveSettings(settings);
+    render();
+  } else if (action === 'reset-deck') {
+    if (confirm('Reset the deck to the starter words? Your progress will be lost.')) {
+      deck = resetDeck();
       render();
     }
   }
 });
 
 $app.addEventListener('change', (e) => {
-  if (e.target.id !== 'alarm-time' && e.target.id !== 'alarm-enabled') return;
+  const t = e.target;
+  if (t.dataset.setting) {
+    const v = t.value.trim();
+    if (t.dataset.setting === 'model') settings.model = v || DEFAULT_MODEL;
+    else settings[t.dataset.setting] = v;
+    saveSettings(settings);
+    return;
+  }
+  if (t.id !== 'alarm-time' && t.id !== 'alarm-enabled') return;
   const time = document.getElementById('alarm-time').value || '07:00';
   const enabled = document.getElementById('alarm-enabled').checked;
   settings.alarm = { time, enabled, nextAt: enabled ? nextOccurrence(time, Date.now()) : null };
@@ -582,6 +664,7 @@ $app.addEventListener('submit', (e) => {
     return;
   }
   saveDeck(deck);
+  adding = false;
   render();
 });
 

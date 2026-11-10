@@ -15,5 +15,9 @@ export const icons = {
   video: (s) => svg('<rect x="3" y="6" width="12" height="12" rx="2.5"/><path d="M15 10.5l6-3v9l-6-3"/>', s),
   contacts: (s) => svg('<circle cx="12" cy="9" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>', s),
   phoneDown: (s) => svg('<g transform="rotate(135 12 12)"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></g>', s),
+  calendar: (s) => svg('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>', s),
+  book: (s) => svg('<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5v-13zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5v-13z"/>', s),
+  alarm: (s) => svg('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M4 5l3-2M20 5l-3-2"/>', s),
+  plus: (s) => svg('<path d="M12 5v14M5 12h14"/>', s),
   check: (s) => svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>', s),
 };

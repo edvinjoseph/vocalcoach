@@ -4,10 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>VocalCoach</title>
-    <meta name="theme-color" content="#e8452c" />
+    <meta name="theme-color" content="#0b1a21" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&amp;display=swap" />
+    <!-- Inter stands in for SF Pro on devices that don't ship it. -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" />
   </head>
   <body>
     <div class="stage" id="stage">
@@ -25,38 +26,6 @@
             </div>
 
             <main id="app"></main>
-
-            <dialog id="settings">
-              <form method="dialog" id="settings-form">
-                <h2>Settings</h2>
-                <p class="muted small" id="settings-note"></p>
-
-                <label>Coach
-                  <select name="persona"></select>
-                </label>
-
-                <label>Voice
-                  <select name="voice"></select>
-                </label>
-
-                <details>
-                  <summary>Advanced</summary>
-                  <label>Your own Gemini API key
-                    <input type="password" name="apiKey" autocomplete="off" spellcheck="false" placeholder="Leave empty to use the built-in key" />
-                  </label>
-                  <p class="muted small">Stored only in this browser and used instead of the built-in key.</p>
-                  <label>Live model
-                    <input name="model" spellcheck="false" />
-                  </label>
-                  <button type="button" class="btn danger small" data-action="reset-deck">Reset word deck</button>
-                </details>
-
-                <div class="dialog-actions">
-                  <button value="cancel" class="btn" formnovalidate>Cancel</button>
-                  <button value="save" class="btn primary">Save</button>
-                </div>
-              </form>
-            </dialog>
 
             <div class="home-indicator" aria-hidden="true"></div>
           </div>
