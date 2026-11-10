@@ -580,7 +580,7 @@ function renderCaptions(c) {
         .map((t) =>
           t.role === 'event'
             ? `<div class="event ${t.good ? 'good' : 'bad'}">${esc(t.text)}</div>`
-            : `<p class="line ${t.role}">${esc(t.text.trim())}</p>`)
+            : `<p class="line ${t.role}">${esc(t.text.replace(/\*\*?/g, '').trim())}</p>`)
         .join('')
     : '<p class="line empty">Captions appear here as you talk.</p>';
   $c.scrollTop = $c.scrollHeight;

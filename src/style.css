@@ -273,8 +273,8 @@ button { font-family: inherit; letter-spacing: inherit; }
 .call > * { flex-shrink: 0; }
 .call > .captions { flex: 1 1 0; min-height: 0; }
 .captions {
-  width: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-top: 10px;
-  scrollbar-width: none; -webkit-mask-image: linear-gradient(transparent, #000 16%); mask-image: linear-gradient(transparent, #000 16%);
+  width: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-top: 12px;
+  scrollbar-width: none; -webkit-mask-image: linear-gradient(transparent, #000 10px); mask-image: linear-gradient(transparent, #000 10px);
 }
 .captions::-webkit-scrollbar { display: none; }
 .line { max-width: 28em; font-size: 16px; line-height: 1.38; color: #fff; }
