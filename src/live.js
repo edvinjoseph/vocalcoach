@@ -175,6 +175,12 @@ export class AudioIO {
     this.lastMicAt = 0;
     this.lastSentAt = 0;
     this.closed = false;
+    this.muted = false; // the call screen's mute button: frames are still read, never sent
+    this.captureId = 0;
+    this.lastSignalAt = 0;
+    this.untranscribedMs = 0;
+    this.untranscribedSince = 0;
+    this.micOptions = { deviceId: '', processing: true };
     this.micCtx.onstatechange = () => {
       if (!this.closed && this.micCtx.state !== 'running') this._setMicState('paused');
     };
@@ -186,47 +192,112 @@ export class AudioIO {
       ctx.state === 'running' ? Promise.resolve() : ctx.resume()));
   }
 
-  async startMic() {
-    if (this.node) return;
+  startMic(options = {}) {
+    if (this.node) return Promise.resolve();
+    return this._openMic(options, true);
+  }
+
+  restartMic(options = this.micOptions) {
+    return this._openMic(options, false);
+  }
+
+  /** The deviceId actually in use, which may differ from the one requested. */
+  get currentDeviceId() {
+    return this.track?.getSettings?.().deviceId || '';
+  }
+
+  async listMicrophones() {
+    if (!navigator.mediaDevices?.enumerateDevices) return [];
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter((device) => device.kind === 'audioinput' && device.deviceId);
+  }
+
+  async _openMic(options, allowDefaultFallback) {
+    if (this.closed) throw new DOMException('Call already ended', 'AbortError');
+    const captureId = ++this.captureId;
+    const next = { ...this.micOptions, ...options };
+    // Resume during the gesture, before permission or device selection can take focus.
     const activation = this.resume();
     activation.catch(() => {});
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+    const request = () => navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: next.processing, noiseSuppression: next.processing,
+        autoGainControl: next.processing, channelCount: 1,
+        ...(next.deviceId ? { deviceId: { exact: next.deviceId } } : {}),
+      },
     });
-    if (this.closed) {
-      stream.getTracks().forEach((track) => track.stop());
-      throw new DOMException('Call already ended', 'AbortError');
-    }
-    this.stream = stream;
-    this.track = stream.getAudioTracks()[0];
-    if (!this.track || this.track.readyState === 'ended') throw new Error('No working microphone was found.');
-    this.track.addEventListener('ended', () => {
-      if (!this.closed) this.onError?.(new Error('The microphone disconnected. Reconnect it and try the call again.'));
-    });
-    this.track.addEventListener('mute', () => { if (!this.closed) this._setMicState('paused'); });
-    await activation;
-    await this.resume();
-    if (this.closed) throw new DOMException('Call already ended', 'AbortError');
-    this.source = this.micCtx.createMediaStreamSource(stream);
+    let stream;
     try {
-      await this._startWorklet();
-    } catch {
-      if (this.closed) throw new DOMException('Call already ended', 'AbortError');
-      this._startFallback();
+      try { stream = await request(); } catch (error) {
+        // A saved headset may have been unplugged since the previous call.
+        if (!allowDefaultFallback || !next.deviceId || !['NotFoundError', 'OverconstrainedError'].includes(error.name)) throw error;
+        if (this.closed || captureId !== this.captureId) throw new DOMException('Call already ended', 'AbortError');
+        next.deviceId = '';
+        stream = await request();
+      }
+      const checkCurrent = () => {
+        if (this.closed || captureId !== this.captureId) throw new DOMException('Microphone request cancelled', 'AbortError');
+      };
+      checkCurrent();
+      await activation;
+      await this.resume();
+      checkCurrent();
+      const track = stream.getAudioTracks()[0];
+      if (!track || track.readyState === 'ended') throw new Error('No working microphone was found.');
+      const source = this.micCtx.createMediaStreamSource(stream);
+      // Keep the old input working until the replacement has permission and a source.
+      clearInterval(this.watchdog);
+      this.finishFirstFrame?.(false);
+      const oldStream = this.stream;
+      this._disconnectProcessor();
+      this.stream = stream;
+      this.track = track;
+      this.source = source;
+      this.micOptions = next;
+      this.micFrames = 0;
+      this.lastMicAt = this.lastSignalAt = this.lastSentAt = 0;
+      this.untranscribedMs = this.untranscribedSince = 0;
+      this.captureStartedAt = Date.now();
+      this._setMicState('starting');
+      this.onMicLevel?.(0);
+      oldStream?.getTracks().forEach((oldTrack) => oldTrack.stop());
+      track.addEventListener('ended', () => {
+        if (!this.closed && this.track === track) {
+          this._setMicState('disconnected');
+          this.onError?.(new Error('Microphone disconnected. Choose another input or reconnect.'));
+        }
+      });
+      track.addEventListener('mute', () => {
+        if (!this.closed && this.track === track) this._setMicState('paused');
+      });
+      try { await this._startWorklet(); } catch (error) {
+        checkCurrent();
+        this._startFallback();
+      }
+      checkCurrent();
+      if (!await this._waitForFrames(1800) && !this.closed && captureId === this.captureId && this.processorMode === 'worklet') this._startFallback();
+      checkCurrent();
+      if (!await this._waitForFrames(1800)) {
+        checkCurrent();
+        this._setMicState('stalled');
+        throw new Error('No audio frames are reaching the app. Choose another microphone or reconnect.');
+      }
+      checkCurrent();
+      this.watchdog = setInterval(() => {
+        if (this.closed || this.micState === 'disconnected') return;
+        if (this.micCtx.state !== 'running' || this.track.muted) return this._setMicState('paused');
+        if (Date.now() - this.lastMicAt < 2000) return;
+        if (this.processorMode === 'worklet') {
+          try { this._startFallback(); this.lastMicAt = Date.now(); } catch (error) { this.onError?.(error); }
+        } else if (this.micState !== 'stalled') {
+          this._setMicState('stalled');
+          this.onError?.(new Error('Microphone capture stopped. Choose another input or reconnect.'));
+        }
+      }, 1000);
+    } catch (error) {
+      if (stream && stream !== this.stream) stream.getTracks().forEach((track) => track.stop());
+      throw error;
     }
-    if (!await this._waitForFrames(1800) && !this.closed && this.processorMode === 'worklet') {
-      this._startFallback();
-    }
-    if (this.closed) throw new DOMException('Call already ended', 'AbortError');
-    if (!await this._waitForFrames(1800)) throw new Error('No audio is reaching the microphone. Check your input device and try again.');
-    this.watchdog = setInterval(() => {
-      if (this.closed) return;
-      if (this.micCtx.state !== 'running' || this.track.muted) return this._setMicState('paused');
-      if (Date.now() - this.lastMicAt < 2000) return;
-      if (this.processorMode === 'worklet') {
-        try { this._startFallback(); this.lastMicAt = Date.now(); } catch (error) { this.onError?.(error); }
-      } else this.onError?.(new Error('Microphone capture stopped. Check your input device and try again.'));
-    }, 1000);
   }
 
   async _startWorklet() {
@@ -278,12 +349,21 @@ export class AudioIO {
     this.micFrames++;
     this.lastMicAt = Date.now();
     this.finishFirstFrame?.(true);
-    this.onChunk?.(buffer);
+    if (!this.muted) this.onChunk?.(buffer);
     const samples = new Int16Array(buffer);
     let energy = 0;
     for (const sample of samples) energy += (sample / 32768) ** 2;
+    const rms = Math.sqrt(energy / samples.length);
+    if (rms >= 0.003) {
+      this.lastSignalAt = this.lastMicAt;
+      // Speaker echo is not evidence that the user's answer reached Gemini.
+      if (!this.player.speaking && !this.track?.muted && !this.muted) {
+        if (!this.untranscribedSince) this.untranscribedSince = this.lastMicAt;
+        this.untranscribedMs += samples.length / (IN_RATE / 1000);
+      }
+    }
     this._setMicState(this.track?.muted ? 'paused' : 'active');
-    this.onMicLevel?.(Math.min(1, Math.sqrt(energy / samples.length) * 8));
+    this.onMicLevel?.(Math.min(1, rms * 8));
   }
 
   _setMicState(state) {
@@ -302,6 +382,7 @@ export class AudioIO {
   close() {
     if (this.closed) return;
     this.closed = true;
+    this.captureId++;
     clearInterval(this.watchdog);
     this.finishFirstFrame?.(false);
     this.onChunk = null;
@@ -439,6 +520,7 @@ export class LiveCall {
 
       const heard = sc.inputTranscription?.text;
       if (heard) {
+        this.audio.untranscribedMs = this.audio.untranscribedSince = 0;
         this.o.onTranscript?.('user', heard);
         this.o.onUserSpoke?.();
       }

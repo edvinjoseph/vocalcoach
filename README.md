@@ -40,6 +40,10 @@ As in momsalarm:
 - if the line drops, it calls back and picks up where it left off;
 - there is a hard stop at 10 minutes.
 
+The call screen has mute, end and audio. Audio opens a microphone picker, and the choice is remembered. If the
+chosen input is silent, or Gemini transcribes none of what it hears, the status line turns amber, says so, and
+opens the same picker when tapped.
+
 ## Scheduling (Leitner boxes)
 
 | Box | Next review |
@@ -60,8 +64,10 @@ Due dates fall at local midnight, so a morning alarm catches everything due that
 Set a time and switch it on. When the alarm fires, the page rings until you answer, and there is no decline
 button. Alarm calls are short. An emergency hang-up exists, but it counts every unfinished word as failed.
 
-Browsers only ring while the tab is open (and after you've tapped the page once since loading). A real
-alarm that works when the screen is off needs the native app path that momsalarm already solved.
+Nothing runs once the page is gone or out of sight: the alarm and ringtone only sound while the page is open and
+visible, a call hangs up (mic off, connection closed) as soon as you switch away or close the page, and the app
+sends no system notifications. A real alarm that works when the screen is off needs the native app path that
+momsalarm already solved.
 
 ## Files
 

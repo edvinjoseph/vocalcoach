@@ -259,13 +259,10 @@ function ring() {
   if (isShowingFindings() || view === 'call' || view === 'ring') return;
   cancelIncomingDemo();
   view = 'ring';
-  ringer.start();
+  // Sound only from a page someone is looking at. No system notifications:
+  // nothing this app does should outlive the open page.
+  if (!document.hidden) ringer.start();
   document.title = 'Incoming call, VocalCoach';
-  try {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(`${persona().name} is calling`, { body: 'Time to wake up and pass your words.', requireInteraction: true });
-    }
-  } catch { /* notifications are optional */ }
   render();
   $app.querySelector('#answer-slider')?.focus({ preventScroll: true });
 }
@@ -332,17 +329,22 @@ async function startCall(mode) {
     setupFailures: 0,
     endAccepted: false,
     micLevel: 0,
+    muted: false,
+    micProblem: '', // a capture error after the call started; shown, never fatal
+    coachQuietSince: Date.now(),
+    picker: null, // list of microphones while the Audio sheet is open
     recap: '',
   };
   call = c;
   view = 'call';
   audio.onMicState = () => updateLiveBits(c);
   audio.onMicLevel = (level) => { c.micLevel = level; updateLiveBits(c); };
-  audio.onError = (error) => endCall(c, 'error', `Microphone unavailable: ${error.message}`);
+  // A mic that drops mid-call is fixable from the Audio sheet, so it must not end the call.
+  audio.onError = (error) => { c.micProblem = error.message; updateLiveBits(c); };
   render();
 
   try {
-    await audio.startMic();
+    await audio.startMic({ deviceId: settings.micId || '' });
   } catch (err) {
     endCall(c, 'error', `Microphone unavailable: ${err?.message || err}`);
     return;
@@ -377,7 +379,7 @@ function dial(c) {
     onUserSpoke: () => { c.lastActivity = Date.now(); },
     onSpeakingChange: (sp) => {
       c.speaking = sp;
-      if (!sp) c.lastActivity = Date.now();
+      if (!sp) c.lastActivity = c.coachQuietSince = Date.now();
       updateLiveBits(c);
     },
     onDrop: (code, reason, wasReady) => handleDrop(c, code, reason, wasReady),
@@ -452,7 +454,7 @@ function tick(c) {
   updateLiveBits(c);
   const elapsed = Date.now() - c.startedAt;
   const $t = document.getElementById('call-timer');
-  if ($t) $t.textContent = `${Math.floor(elapsed / 60000)}:${String(Math.floor(elapsed / 1000) % 60).padStart(2, '0')}`;
+  if ($t) $t.textContent = `${String(Math.floor(elapsed / 60000)).padStart(2, '0')}:${String(Math.floor(elapsed / 1000) % 60).padStart(2, '0')}`;
   if (elapsed >= HARD_STOP_MS) {
     endCall(c, 'timeout');
     return;
@@ -528,18 +530,29 @@ function renderCall() {
     <div class="call">
       <div class="ios-head">
         <div class="call-name">${esc(c.persona.name)}</div>
-        <div class="call-timer" id="call-timer">0:00</div>
+        <div class="call-timer" id="call-timer">00:00</div>
         <div class="call-status" id="call-status">${esc(c.status)}</div>
       </div>
       <div class="focus" id="focus"></div>
       <div class="voice" id="voice" aria-hidden="true">${'<i></i>'.repeat(28)}</div>
       <div class="captions" id="captions" aria-live="polite"></div>
-      <div class="mic-status">
-        <span class="mic-signal" id="mic-signal" aria-hidden="true">${'<i></i>'.repeat(5)}</span>
-        <span class="mic-label" id="mic-label">Connecting microphone…</span>
+      <button class="call-hint" id="mic-label" data-action="audio" aria-haspopup="dialog" aria-live="polite" disabled>Connecting microphone…</button>
+      <div class="call-controls">
+        <div class="ctl">
+          <button class="ctl-btn" id="mute-btn" data-action="mute" aria-pressed="false" aria-label="Mute">${icons.mic(28)}</button>
+          <span>mute</span>
+        </div>
+        <div class="ctl">
+          <button class="end" data-action="hangup" aria-label="${c.mode === 'alarm' ? 'End call (counts as failed)' : 'End call'}">${icons.phoneDown(32)}</button>
+          <span>end</span>
+        </div>
+        <div class="ctl">
+          <button class="ctl-btn" id="audio-btn" data-action="audio" aria-haspopup="dialog" aria-label="Choose microphone">${icons.speaker(28)}</button>
+          <span>audio</span>
+        </div>
       </div>
-      <button class="end" data-action="hangup" aria-label="${c.mode === 'alarm' ? 'Hang up (counts as failed)' : 'Hang up'}">${icons.phoneDown(32)}</button>
-      ${c.mode === 'alarm' ? '<div class="end-note">Hanging up counts as failed</div>' : ''}
+      ${c.mode === 'alarm' ? '<div class="end-note">Ending the call counts as failed</div>' : ''}
+      <div id="picker-host"></div>
     </div>`;
   renderProgress(c);
   renderCaptions(c);
@@ -586,16 +599,105 @@ function renderCaptions(c) {
 function updateLiveBits(c) {
   if (call !== c) return;
   document.getElementById('voice')?.classList.toggle('speaking', c.speaking);
-  document.getElementById('mic-signal')?.style.setProperty('--mic-level', String(c.endAccepted || c.audio.micState !== 'active' ? 0 : c.micLevel));
+  const live = !c.endAccepted && !c.muted && c.audio.micState === 'active';
+  const $mute = document.getElementById('mute-btn');
+  if ($mute) {
+    $mute.classList.toggle('on', c.muted);
+    $mute.setAttribute('aria-pressed', String(c.muted));
+    // A ring around the mute button follows your voice, so you can see the mic working.
+    $mute.style.setProperty('--mic-level', String(live ? c.micLevel : 0));
+    const want = c.muted ? 'off' : 'on';
+    if ($mute.dataset.icon !== want) {
+      $mute.dataset.icon = want;
+      $mute.innerHTML = c.muted ? icons.micOff(28) : icons.mic(28);
+    }
+  }
+  const { text, warn } = hearingStatus(c);
   const $label = document.getElementById('mic-label');
   if ($label) {
-    $label.textContent = c.endAccepted ? 'Mic off'
-      : c.audio.micState === 'paused' ? 'Microphone paused. Tap to resume.'
-      : c.audio.micState !== 'active' ? 'Connecting microphone…'
-      : !c.live?.ready ? 'Connecting to coach…'
-      : Date.now() - c.audio.lastSentAt > 1500 ? 'Waiting for microphone audio…'
-      : c.speaking ? `${c.persona.name} is talking. You can interrupt.` : 'Listening…';
+    if ($label.textContent !== text) $label.textContent = text;
+    $label.classList.toggle('warn', warn);
+    // The status line is plain text until something is wrong; then it also opens the microphone picker.
+    $label.disabled = !warn || c.muted;
   }
+  document.getElementById('audio-btn')?.classList.toggle('attention', warn && !c.muted);
+}
+
+// What the user most needs to know about whether the coach can hear them.
+// Problems the user can fix (wrong or silent microphone) come first, and each
+// one says where the fix is.
+function hearingStatus(c) {
+  const a = c.audio;
+  const now = Date.now();
+  const device = a.track?.label ? `"${a.track.label.replace(/\s*\(.*\)$/, '')}"` : 'this microphone';
+  if (c.endAccepted) return { text: 'Mic off', warn: false };
+  if (c.muted) return { text: `You're muted. ${c.persona.name} can't hear you.`, warn: true };
+  if (c.micProblem || a.micState === 'stalled' || a.micState === 'disconnected') {
+    return { text: `${c.micProblem || 'The microphone stopped.'} Tap to pick another microphone.`, warn: true };
+  }
+  if (a.micState === 'paused') return { text: 'Microphone paused by the browser or system.', warn: true };
+  if (a.micState !== 'active') return { text: 'Connecting microphone…', warn: false };
+  if (!c.live?.ready) return { text: 'Connecting to coach…', warn: false };
+  if (c.speaking) return { text: `${c.persona.name} is talking. You can interrupt.`, warn: false };
+  // Nothing above the noise floor for a while after the coach stopped: wrong or dead input.
+  if (now - Math.max(a.lastSignalAt, c.coachQuietSince, a.captureStartedAt || 0) > 7000) {
+    return { text: `No sound from ${device}. Tap to switch microphone.`, warn: true };
+  }
+  // Sound is arriving but Gemini has transcribed none of it: likely noise or a far-away mic.
+  if (a.untranscribedMs > 4000 && now - a.untranscribedSince > 6000) {
+    return { text: `${c.persona.name} isn't catching your words. Move closer, or tap to switch microphone.`, warn: true };
+  }
+  return { text: 'Listening…', warn: false };
+}
+
+async function openMicPicker(c) {
+  let devices = [];
+  try { devices = await c.audio.listMicrophones(); } catch { /* listed as empty */ }
+  if (call !== c || c.ended) return;
+  c.picker = devices;
+  renderPicker(c);
+}
+
+function renderPicker(c) {
+  const $host = document.getElementById('picker-host');
+  if (!$host || call !== c) return;
+  if (!c.picker) {
+    $host.innerHTML = '';
+    document.getElementById('audio-btn')?.focus();
+    return;
+  }
+  const current = c.audio.currentDeviceId;
+  const rows = c.picker.length
+    ? c.picker.map((d, i) => `
+        <button class="sheet-row" data-action="pick-mic" data-id="${esc(d.deviceId)}" aria-pressed="${d.deviceId === current}">
+          <span>${esc(d.label || `Microphone ${i + 1}`)}</span>${d.deviceId === current ? icons.check(18) : ''}
+        </button>`).join('')
+    : '<div class="sheet-row empty">No other microphones found.</div>';
+  $host.innerHTML = `
+    <div class="call-scrim" data-action="close-picker"></div>
+    <div class="call-sheet" role="dialog" aria-modal="true" aria-label="Microphone">
+      <div class="sheet-group">
+        <div class="sheet-head">Microphone</div>
+        ${rows}
+      </div>
+      <button class="sheet-cancel" data-action="close-picker">Cancel</button>
+    </div>`;
+  $host.querySelector('.sheet-row[aria-pressed="true"], .sheet-row, .sheet-cancel')?.focus();
+}
+
+async function switchMic(c, deviceId) {
+  c.picker = null;
+  renderPicker(c);
+  c.micProblem = '';
+  settings.micId = deviceId;
+  saveSettings(settings);
+  try {
+    await c.audio.restartMic({ deviceId });
+  } catch (err) {
+    if (err?.name !== 'AbortError') c.micProblem = err?.message || String(err);
+  }
+  c.coachQuietSince = Date.now();
+  updateLiveBits(c);
 }
 
 // ── Summary ─────────────────────────────────────────────────────────────────
@@ -606,6 +708,7 @@ function renderSummary() {
     passed: s.mode === 'alarm' ? "You're up, and you passed" : 'Nice work',
     hungup: 'Call ended early',
     timeout: 'Time ran out',
+    left: 'Call ended when you left the page',
     error: 'The call failed',
   };
   $app.innerHTML = `
@@ -642,7 +745,20 @@ $app.addEventListener('click', (e) => {
     render();
     $app.scrollTop = 0;
   } else if (action === 'practice') startCall('practice');
-  else if (action === 'hangup') {
+  else if (action === 'mute') {
+    if (call) {
+      call.muted = !call.muted;
+      call.audio.muted = call.muted;
+      if (!call.muted) call.coachQuietSince = Date.now();
+      updateLiveBits(call);
+    }
+  } else if (action === 'audio') {
+    if (call) openMicPicker(call);
+  } else if (action === 'close-picker') {
+    if (call) { call.picker = null; renderPicker(call); }
+  } else if (action === 'pick-mic') {
+    if (call) switchMic(call, el.dataset.id);
+  } else if (action === 'hangup') {
     if (call) endCall(call, 'hungup');
   } else if (action === 'home') {
     if (view === 'summary' && summary?.outcome !== 'error') {
@@ -695,9 +811,6 @@ $app.addEventListener('change', (e) => {
   const enabled = document.getElementById('alarm-enabled').checked;
   settings.alarm = { time, enabled, nextAt: enabled ? nextOccurrence(time, Date.now()) : null };
   saveSettings(settings);
-  if (enabled && 'Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission().catch(() => {});
-  }
   render();
 });
 
@@ -718,6 +831,9 @@ $app.addEventListener('submit', (e) => {
 // ── Alarm clock (runs while the tab is open) ────────────────────────────────
 
 setInterval(() => {
+  // A hidden tab never rings. If the alarm time passes while hidden, it rings
+  // when the page is visible again (within the catch-up window), never before.
+  if (document.hidden) return;
   if (isShowingFindings() || view === 'call' || view === 'ring') return;
   const now = Date.now();
   if (testAlarmAt && now >= testAlarmAt) {
@@ -744,8 +860,30 @@ document.addEventListener('visibilitychange', () => {
     resumeIntro = true;
     render();
   }
+  // Never ring from a tab nobody is looking at; pick the tone back up on return.
+  // A call never continues in the background: leaving the page hangs up, which
+  // turns the microphone off and closes the Gemini connection.
+  if (document.hidden) {
+    ringer.stop();
+    if (call) endCall(call, 'left');
+  } else if (view === 'ring') ringer.start();
   if (!document.hidden && view === 'launcher' && resumeIntro) startIncomingDemo();
   if (!document.hidden && view === 'home') render();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && call?.picker) {
+    call.picker = null;
+    renderPicker(call);
+  }
+});
+
+// Closing or navigating away silences the ringtone and releases the audio device,
+// even if the browser keeps running in the background.
+window.addEventListener('pagehide', () => {
+  if (call) endCall(call, 'left');
+  ringer.stop();
+  ringer.ctx?.close().catch(() => {});
 });
 
 // ── The phone frame ─────────────────────────────────────────────────────────

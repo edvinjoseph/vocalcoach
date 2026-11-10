@@ -280,21 +280,66 @@ button { font-family: inherit; letter-spacing: inherit; }
 .event { font-size: 13px; font-weight: 600; }
 .event.good { color: #7fe3df; }
 .event.bad { color: #ff8a73; }
-.mic-status { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 24px; margin: 6px 0 10px; }
-.mic-label { font-size: 13px; color: rgba(255, 255, 255, 0.65); text-align: center; }
-.mic-signal { display: flex; align-items: center; gap: 2px; height: 18px; flex-shrink: 0; }
-.mic-signal i { width: 3px; height: calc(3px + var(--mic-level, 0) * 15px); border-radius: 2px; background: #7fe3df; }
-.mic-signal i:nth-child(2n) { height: calc(3px + var(--mic-level, 0) * 10px); }
-.mic-signal i:first-child, .mic-signal i:last-child { height: calc(3px + var(--mic-level, 0) * 6px); }
+/* One quiet status line. When something is wrong it turns amber and becomes
+   tappable: it opens the microphone sheet. */
+.call-hint {
+  appearance: none; border: 0; background: none; font: inherit; color: rgba(255, 255, 255, 0.65);
+  font-size: 13px; line-height: 18px; text-align: center; margin: 8px 0 14px; padding: 6px 12px; min-height: 30px;
+  border-radius: 15px; max-width: 100%;
+}
+.call-hint:disabled { cursor: default; }
+.call-hint.warn { color: #ffd60a; background: rgba(255, 214, 10, 0.14); cursor: pointer; }
+.call-hint.warn:active { opacity: 0.7; }
 
+/* iOS in-call controls: glass buttons, red End in the middle, lowercase labels. */
+.call-controls { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); justify-items: center; }
+.ctl { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12px; color: #fff; letter-spacing: 0; }
+.ctl-btn {
+  --mic-level: 0;
+  appearance: none; border: 0; width: 72px; height: 72px; border-radius: 50%; color: #fff; cursor: pointer;
+  display: grid; place-items: center; background: rgba(255, 255, 255, 0.17);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  box-shadow: 0 0 0 calc(var(--mic-level) * 7px) rgba(127, 227, 223, 0.32);
+  transition: background-color 0.15s, color 0.15s, transform 0.12s, box-shadow 0.08s linear;
+}
+.ctl-btn:active { transform: scale(0.94); }
+.ctl-btn.on { background: #fff; color: #0b1a21; }
+.ctl-btn.attention { background: rgba(255, 214, 10, 0.3); }
+.ctl-btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .end {
-  appearance: none; border: 0; margin-top: 22px; width: 70px; height: 70px; border-radius: 50%; cursor: pointer;
+  appearance: none; border: 0; width: 72px; height: 72px; border-radius: 50%; cursor: pointer;
   display: grid; place-items: center; color: #fff; background: #ff3b30; transition: transform 0.12s, filter 0.15s;
 }
 .end:hover { filter: brightness(1.1); }
 .end:active { transform: scale(0.94); }
-.end:focus-visible { outline-color: #fff; }
-.end-note { margin-top: 6px; font-size: 12px; color: rgba(255, 255, 255, 0.55); }
+.end:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.end-note { margin-top: 10px; font-size: 12px; color: rgba(255, 255, 255, 0.55); }
+
+/* Microphone picker: an iOS action sheet inside the call. */
+.call-scrim { position: absolute; inset: 0; z-index: 20; background: rgba(0, 0, 0, 0.4); animation: fade 0.2s both; }
+.call-sheet {
+  position: absolute; left: 8px; right: 8px; bottom: 30px; z-index: 21; display: grid; gap: 8px;
+  animation: rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.sheet-group, .sheet-cancel {
+  border-radius: 14px; overflow: hidden; background: rgba(44, 44, 46, 0.86);
+  -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6);
+}
+.sheet-head { padding: 13px 16px; font-size: 13px; color: rgba(235, 235, 245, 0.6); text-align: center; }
+.sheet-row {
+  appearance: none; border: 0; width: 100%; min-height: 57px; padding: 0 20px; display: flex; align-items: center;
+  justify-content: center; gap: 8px; font: inherit; font-size: 17px; color: #0a84ff; background: none; cursor: pointer;
+  border-top: 0.5px solid rgba(84, 84, 88, 0.65);
+}
+.sheet-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-row[aria-pressed='true'] { font-weight: 600; }
+.sheet-row.empty { color: rgba(235, 235, 245, 0.6); cursor: default; }
+.sheet-row:active, .sheet-cancel:active { background: rgba(255, 255, 255, 0.08); }
+.sheet-cancel {
+  appearance: none; border: 0; width: 100%; min-height: 57px; font: inherit; font-size: 17px; font-weight: 600;
+  color: #0a84ff; cursor: pointer;
+}
+.sheet-row:focus-visible, .sheet-cancel:focus-visible { outline: 2px solid #0a84ff; outline-offset: -2px; }
 
 /* ── Summary ─────────────────────────────────────────────────────────────── */
 
