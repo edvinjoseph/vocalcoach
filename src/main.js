@@ -29,7 +29,6 @@ const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 
 const persona = () => PERSONAS[settings.persona] || PERSONAS.mom;
-const mark = (p) => esc(p.name.replace(/^Ms.s*/, '').charAt(0));
 
 // Any tap unlocks audio, so a later alarm can ring without a fresh gesture.
 document.addEventListener('pointerdown', () => ringer.unlock());
@@ -62,6 +61,7 @@ function renderHome() {
   const preview = pickSessionWords(deck, now, 'practice');
   const dueCount = deck.filter((w) => isDue(w, now)).length;
   const newCount = deck.filter((w) => w.box === 0).length;
+  const streak = currentStreak();
   const sorted = [...deck].sort((a, b) => {
     const rank = (w) => (isDue(w, now) ? 0 : w.box === 0 ? 1 : 2);
     return rank(a) - rank(b) || a.dueAt - b.dueAt || a.word.localeCompare(b.word);
@@ -69,45 +69,44 @@ function renderHome() {
 
   $app.innerHTML = `
     <header class="top">
-      <div class="brand"><span class="logo" aria-hidden="true"></span>VocalCoach</div>
+      <span class="wordmark">VocalCoach</span>
       <button class="icon-btn" data-action="settings" aria-label="Open settings">${icons.gear()}</button>
     </header>
 
-    ${settings.apiKey ? '' : `<div class="banner">Add your Gemini API key in <button class="link" data-action="settings">Settings</button> to start a call.</div>`}
+    ${settings.apiKey ? '' : `<p class="notice">Add your Gemini API key in <button class="link" data-action="settings">Settings</button> to start a call.</p>`}
 
-    <section class="card hero" data-enter>
-      <div class="hero-row">
-        <div>
-          <div class="eyebrow">Today</div>
-          <div class="big">${dueCount} due · ${newCount} new</div>
-        </div>
-        <div class="streak" title="Days in a row with a finished call">${icons.flame(18)}<span>${currentStreak()}<small> day streak</small></span></div>
-      </div>
-      <p class="muted">${esc(p.name)} will quiz you on: <strong>${preview.map((w) => esc(w.word)).join(', ')}</strong></p>
-      <button class="btn primary wide" data-action="practice">${icons.phone(18)} Start practice call</button>
-      <p class="muted small">For each word you'll say it from its meaning, then use it in your own sentence.</p>
+    <section class="next" data-enter>
+      <p class="tally">${dueCount} to review, ${newCount} new${streak ? `, ${streak}-day streak` : ''}</p>
+      <h1 class="lineup" aria-label="Words for your next call">
+        ${preview.map((w) => `<span>${esc(w.word)}</span>`).join('')}
+      </h1>
+      <button class="btn primary" data-action="practice">${icons.phone(18)} Call me about these</button>
+      <p class="hint">${esc(p.name)} gives you the meaning. You say the word, then use it in a sentence of your own.</p>
     </section>
 
-    <section class="card">
-      <div class="eyebrow">Wake-up call</div>
-      <p class="muted small">At this time ${esc(p.name)} calls you. It keeps ringing until you pick up, and the call doesn't end until you've passed your words. Keep this tab open.</p>
-      <div class="row">
+    <section class="block">
+      <h2>Wake-up call</h2>
+      <p class="hint">${esc(p.name)} rings at this time and keeps ringing. The call only ends once you've passed your words. Keep this tab open.</p>
+      <div class="alarm-row">
         <input type="time" id="alarm-time" value="${settings.alarm.time}" aria-label="Alarm time" />
-        <label class="switch"><input type="checkbox" id="alarm-enabled" ${settings.alarm.enabled ? 'checked' : ''} /><span>On</span></label>
+        <label class="switch"><input type="checkbox" id="alarm-enabled" ${settings.alarm.enabled ? 'checked' : ''} /><span>Alarm on</span></label>
       </div>
-      <div class="muted small">${alarmLabel()}</div>
-      <button class="btn wide" data-action="test-alarm" ${testAlarmAt ? 'disabled' : ''}>${testAlarmAt ? 'Ringing in a few seconds…' : 'Test the alarm'}</button>
+      <p class="hint">${alarmLabel()}</p>
+      <button class="btn" data-action="test-alarm" ${testAlarmAt ? 'disabled' : ''}>${testAlarmAt ? 'Ringing in a few seconds…' : 'Test the alarm'}</button>
     </section>
 
-    <section class="card">
-      <div class="eyebrow">Your words (${deck.length})</div>
-      <form id="add-form" class="add-form">
-        <label>Word<input name="word" required autocomplete="off" /></label>
-        <label>Meaning<input name="definition" required autocomplete="off" placeholder="Short, plain English" /></label>
-        <label class="full">Example sentence <span class="muted">(optional)</span><input name="example" autocomplete="off" /></label>
-        <button class="btn" type="submit">Add word</button>
-      </form>
-      <p class="muted small">During a call you can also say "add the word …".</p>
+    <section class="block">
+      <h2>Your words <span class="count">${deck.length}</span></h2>
+      <details class="adder">
+        <summary>Add a word</summary>
+        <form id="add-form" class="add-form">
+          <label>Word<input name="word" required autocomplete="off" /></label>
+          <label>Meaning<input name="definition" required autocomplete="off" placeholder="Short, plain English" /></label>
+          <label class="full">Example sentence <span class="muted">(optional)</span><input name="example" autocomplete="off" /></label>
+          <button class="btn" type="submit">Add word</button>
+        </form>
+        <p class="hint">In a call you can also say "add the word …".</p>
+      </details>
       <ul class="words">
         ${sorted.map((w) => `
           <li>
@@ -116,7 +115,7 @@ function renderHome() {
               <div class="w-def">${esc(w.definition)}</div>
             </div>
             <div class="w-meta">
-              <span class="boxes" title="Box ${w.box} of ${MAX_BOX}">${boxDots(w.box)}</span>
+              <span class="boxes" role="img" aria-label="Box ${w.box} of ${MAX_BOX}">${boxDots(w.box)}</span>
               <span class="due ${isDue(w, now) ? 'is-due' : ''}">${dueLabel(w, now)}</span>
               <button class="icon-btn small" data-action="delete" data-id="${w.id}" aria-label="Remove ${esc(w.word)}">${icons.trash(16)}</button>
             </div>
@@ -130,8 +129,9 @@ function renderHome() {
 function ring() {
   if (view === 'call' || view === 'ring') return;
   view = 'ring';
+  document.body.classList.add('is-ringing');
   ringer.start();
-  document.title = '📞 Incoming call · VocalCoach';
+  document.title = 'Incoming call, VocalCoach';
   try {
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification(`${persona().name} is calling`, { body: 'Time to wake up and pass your words.', requireInteraction: true });
@@ -143,12 +143,11 @@ function ring() {
 function renderRing() {
   const p = persona();
   $app.innerHTML = `
-    <div class="ring">
-      <div class="avatar ringing" aria-hidden="true">${mark(p)}</div>
-      <div class="ring-name">${esc(p.name)}</div>
-      <div class="muted">is calling…</div>
-      <button class="btn answer" data-action="answer">${icons.phone(22)} Answer the call</button>
-      <p class="muted small">There's no decline button. That's the point.</p>
+    <div class="ring" role="alertdialog" aria-label="${esc(p.name)} is calling">
+      <p class="ring-label">Incoming call</p>
+      <h1 class="ring-name">${esc(p.name)}</h1>
+      <button class="answer" data-action="answer">${icons.phone(26)} Answer the call</button>
+      <p class="ring-note">There's no decline button.</p>
     </div>`;
 }
 
@@ -372,19 +371,19 @@ function renderCall() {
   $app.innerHTML = `
     <div class="call">
       <div class="call-head">
-        <div class="avatar" id="avatar" aria-hidden="true">${mark(c.persona)}</div>
-        <div class="call-who">
-          <div class="call-name">${esc(c.persona.name)}${c.mode === 'alarm' ? ' · wake-up call' : ''}</div>
+        <div>
+          <div class="call-name">${esc(c.persona.name)}${c.mode === 'alarm' ? ', wake-up call' : ''}</div>
           <div class="call-status" id="call-status">${esc(c.status)}</div>
         </div>
         <div class="call-timer" id="call-timer">0:00</div>
       </div>
-      <div class="progress" id="progress"></div>
+      <div class="focus" id="focus"></div>
+      <div class="voice" id="voice" aria-hidden="true">${'<i></i>'.repeat(28)}</div>
       <div class="captions" id="captions" aria-live="polite"></div>
       <div class="call-foot">
-        <div class="mic" id="mic"><span class="dot"></span><span id="mic-label">Mic on</span></div>
+        <span class="mic-label" id="mic-label">Listening…</span>
         ${c.mode === 'alarm'
-          ? '<button class="link danger small" data-action="hangup">Emergency hang-up (counts as failed)</button>'
+          ? '<button class="link danger" data-action="hangup">Emergency hang-up (counts as failed)</button>'
           : '<button class="btn danger" data-action="hangup">Hang up</button>'}
       </div>
     </div>`;
@@ -393,43 +392,48 @@ function renderCall() {
   updateLiveBits(c);
 }
 
+// The word being worked on stays masked as blanks until the user has said it,
+// otherwise showing it would give away the recall question.
+const blanks = (word) => word.replace(/[a-z]/gi, '_').split('').join(' ');
+
 function renderProgress(c) {
-  const $p = document.getElementById('progress');
-  if (!$p || call !== c) return;
+  const $f = document.getElementById('focus');
+  if (!$f || call !== c) return;
   const focus = currentFocus(c.session);
-  $p.innerHTML = c.session.items
-    .map((i) => `
-      <div class="chip ${isPassed(i) ? 'done' : ''} ${focus === i ? 'focus' : ''}">
-        <span class="chip-word">${esc(i.word)}${i.isNew ? ' <em>new</em>' : ''}</span>
-        <span class="chip-steps">
-          <span class="${i.recall ? 'ok' : ''}" title="Say the word from its meaning">say it ${i.recall ? '✓' : '·'}</span>
-          <span class="${i.sentence ? 'ok' : ''}" title="Use it in your own sentence">use it ${i.sentence ? '✓' : '·'}</span>
-        </span>
-      </div>`)
-    .join('');
+  const done = c.session.items.filter(isPassed).length;
+  const total = c.session.items.length;
+  const shown = focus || c.session.items[c.session.items.length - 1];
+  $f.innerHTML = `
+    <div class="focus-word ${shown.recall ? 'revealed' : ''}" aria-label="${shown.recall ? esc(shown.word) : 'Word to say, ' + shown.word.length + ' letters'}">
+      ${shown.recall ? esc(shown.word) : esc(blanks(shown.word))}
+    </div>
+    <div class="steps">
+      <span class="${shown.recall ? 'ok' : ''}">${shown.recall ? icons.check(14) : ''}Said it</span>
+      <span class="${shown.sentence ? 'ok' : ''}">${shown.sentence ? icons.check(14) : ''}Used it in a sentence</span>
+    </div>
+    <div class="tally-line">${done} of ${total} words passed</div>`;
 }
 
 function renderCaptions(c) {
   const $c = document.getElementById('captions');
   if (!$c || call !== c) return;
-  const items = c.transcript.slice(-40);
+  const items = c.transcript.slice(-30);
   $c.innerHTML = items.length
     ? items
         .map((t) =>
           t.role === 'event'
             ? `<div class="event ${t.good ? 'good' : 'bad'}">${esc(t.text)}</div>`
-            : `<div class="bubble ${t.role}"><span class="who">${t.role === 'user' ? 'You' : esc(c.persona.name)}</span>${esc(t.text.trim())}</div>`)
+            : `<p class="line ${t.role}">${esc(t.text.trim())}</p>`)
         .join('')
-    : '<div class="muted small center">Captions appear here.</div>';
+    : '<p class="line empty">Captions appear here as you talk.</p>';
   $c.scrollTop = $c.scrollHeight;
 }
 
 function updateLiveBits(c) {
   if (call !== c) return;
-  document.getElementById('avatar')?.classList.toggle('speaking', c.speaking);
+  document.getElementById('voice')?.classList.toggle('speaking', c.speaking);
   const $label = document.getElementById('mic-label');
-  if ($label) $label.textContent = c.endAccepted ? 'Mic off' : c.speaking ? `${c.persona.name} is talking (you can interrupt)` : 'Listening…';
-  document.getElementById('mic')?.classList.toggle('off', c.endAccepted);
+  if ($label) $label.textContent = c.endAccepted ? 'Mic off' : c.speaking ? `${c.persona.name} is talking. You can interrupt.` : 'Listening…';
 }
 
 // ── Summary ─────────────────────────────────────────────────────────────────
@@ -443,11 +447,11 @@ function renderSummary() {
     error: 'The call failed',
   };
   $app.innerHTML = `
-    <section class="card summary">
-      <div class="eyebrow">${esc(s.persona.name)} · ${s.mode === 'alarm' ? 'wake-up call' : 'practice'}</div>
+    <section class="summary" data-enter>
+      <p class="tally">${esc(s.persona.name)}, ${s.mode === 'alarm' ? 'wake-up call' : 'practice call'}</p>
       <h1>${titles[s.outcome] || 'Call ended'}</h1>
       ${s.detail ? `<p class="error">${esc(s.detail)}</p>` : ''}
-      ${s.recap ? `<p class="recap">"${esc(s.recap)}"</p>` : ''}
+      ${s.recap ? `<p class="recap">${esc(s.recap)}</p>` : ''}
       <ul class="results">
         ${s.results.map((r) => `
           <li>
@@ -455,10 +459,10 @@ function renderSummary() {
             <span class="r-res ${r.passed ? (r.firstTry ? 'good' : 'ok') : r.touched ? 'bad' : ''}">
               ${r.passed ? (r.firstTry ? 'First try' : 'Passed') : r.touched ? 'Not yet' : 'Not reached'}
             </span>
-            <span class="muted small">${r.touched ? `box ${r.before} → ${r.after} · next: ${r.next}` : 'unchanged'}</span>
+            <span class="r-next">${r.touched ? `Box ${r.before} to ${r.after}. Next: ${r.next}.` : 'Unchanged.'}</span>
           </li>`).join('')}
       </ul>
-      <button class="btn primary wide" data-action="home">Back to my words</button>
+      <button class="btn primary" data-action="home">Back to my words</button>
     </section>`;
 }
 
@@ -505,6 +509,7 @@ $app.addEventListener('click', (e) => {
   else if (action === 'practice') startCall('practice');
   else if (action === 'answer') {
     ringer.stop();
+    document.body.classList.remove('is-ringing');
     document.title = TITLE;
     view = 'home';
     startCall('alarm').then(() => { if (!call && view === 'home') render(); });
