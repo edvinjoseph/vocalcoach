@@ -5,51 +5,130 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>VocalCoach: Product findings</title>
 <style>
-:root{color-scheme:light;--blue:#153FE0;--red:#DE2424;--yellow:#FFE600;--green:#08783E;--white:#FFFFFF;--background:var(--white);--foreground:var(--blue);--muted:var(--blue);--card:var(--white);--border:var(--blue);--primary:var(--blue);--accent:var(--yellow);--success:var(--green);--destructive:var(--red);--radius:16px;--font-sans:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-*{box-sizing:border-box}body{margin:0;font-family:var(--font-sans);color:var(--foreground)}html,body{background:transparent}.deck{width:100%;max-width:1360px;margin:auto}.slide{display:none;background:var(--card);border-radius:var(--radius);padding:52px 56px 36px;min-height:650px}.slide.active{display:flex;flex-direction:column}.composition{display:flex;flex:1;align-items:center}.main{min-width:0;width:100%}h1,h2,p{margin:0}h1,h2{font-size:57px;letter-spacing:-.055em;line-height:1.08;font-weight:550;max-width:740px}.list{margin-top:35px;display:grid;gap:22px}.item{display:grid;grid-template-columns:32px 1fr;gap:14px;align-items:baseline}.num{font-size:12px;color:var(--primary);font-variant-numeric:tabular-nums}.item strong{font-weight:550;font-size:24px;letter-spacing:-.025em}.tabs{font-size:28px;letter-spacing:-.03em;line-height:1.9;margin-top:28px}.tabs span{display:inline-block;margin-right:24px}.controls{display:flex;justify-content:space-between;align-items:center;padding:16px 2px;font-size:12px;color:var(--muted);gap:12px}button{font:inherit;font-size:52px;line-height:1;background:transparent;color:var(--blue);border:0;border-radius:0;min-width:68px;min-height:68px;cursor:pointer;padding:0}button:disabled{cursor:default}button:hover:enabled{color:var(--red)}button:focus-visible{outline:2px solid var(--primary);outline-offset:3px}
+:root{color-scheme:light;--blue:#153FE0;--red:#DE2424;--yellow:#FFE600;--green:#08783E;--white:#FFFFFF;--radius:0px;--font-sans:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+html,body{background:transparent}
+body{margin:0;font-family:var(--font-sans);color:var(--blue)}
+.deck{width:100%;max-width:1360px;margin:auto}
+.slide{display:none;border-radius:var(--radius);padding:52px 56px 36px;min-height:650px}
+.slide.active{display:flex;flex-direction:column;justify-content:center}
+h1,h2,p{margin:0}
 
-@media(min-width:1100px){.slide{min-height:720px;padding:56px 64px 38px}h1,h2{font-size:68px}}
-@media(max-width:800px){.slide{padding:30px;min-height:540px}h1,h2{font-size:43px}.item strong{font-size:21px}.tabs{font-size:24px}}
-@media(max-width:540px){.slide{padding:27px 24px;min-height:640px}h1,h2{font-size:41px;max-width:330px}.controls{padding:12px 0}.tabs{font-size:23px}.list{gap:16px;margin-top:24px}}
-@media print{@page{size:landscape;margin:0}html,body{margin:0;padding:0}.deck{max-width:none}.slide,.slide.active{display:flex;flex-direction:column;break-after:page;border-radius:0;width:100%;height:190mm;min-height:0;padding:14mm 16mm}.slide:last-of-type{break-after:auto}.controls{display:none}h1,h2{font-size:52px}}
+/* Every line on every slide is set at title size. */
+.t{font-size:57px;letter-spacing:-.055em;line-height:1.06;font-weight:550;max-width:900px}
+.t + .t{margin-top:.45em}
+.t.dim{opacity:.62}
+a.t{display:inline-block;color:inherit;text-decoration:underline;text-decoration-thickness:.06em;text-underline-offset:.12em}
+a.t:hover{opacity:.75}
+a.t:focus-visible{outline:3px solid currentColor;outline-offset:6px}
 
-/* Blue and white anchor the deck. Yellow marks navigation, green review, red the alarm constraint. */
-.slide:nth-of-type(1){background:var(--blue);color:var(--white)}
-.slide:nth-of-type(2){background:var(--white);color:var(--blue)}
-.slide:nth-of-type(2) .num{color:var(--red)}
-.slide:nth-of-type(2) .item:last-child .num,.slide:nth-of-type(2) .item:last-child strong{color:var(--green)}
-.slide:nth-of-type(3){background:var(--yellow);color:var(--blue)}
-.slide:nth-of-type(4){background:var(--red);color:var(--white)}
-.controls{background:var(--white);color:var(--blue);padding:16px;border-radius:var(--radius)}
+.s-blue{background:var(--blue);color:var(--white)}
+.s-white{background:var(--white);color:var(--blue)}
+.s-yellow{background:var(--yellow);color:var(--blue)}
+.s-red{background:var(--red);color:var(--white)}
+.s-green{background:var(--green);color:var(--white)}
 
+.controls{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--white);color:var(--blue);padding:16px;border-radius:var(--radius)}
+button{font:inherit;font-size:52px;line-height:1;background:transparent;color:var(--blue);border:0;border-radius:0;min-width:68px;min-height:68px;cursor:pointer;padding:0}
+button:disabled{cursor:default;opacity:.35}
+button:hover:enabled{color:var(--red)}
+button:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
 #next:enabled{color:var(--green)}
 #next:hover:enabled{color:var(--red)}
 
-@media print{*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+@media(min-width:1100px){.slide{min-height:720px;padding:56px 64px 38px}.t{font-size:68px}}
+@media(max-width:800px){.slide{padding:30px;min-height:540px}.t{font-size:43px}}
+@media(max-width:540px){.slide{padding:27px 24px;min-height:640px}.t{font-size:38px}.controls{padding:12px 0}}
+@media print{
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  @page{size:landscape;margin:0}
+  html,body{margin:0;padding:0}
+  .deck{max-width:none}
+  .slide,.slide.active{display:flex;flex-direction:column;justify-content:center;break-after:page;width:100%;height:190mm;min-height:0;padding:14mm 16mm}
+  .slide:last-of-type{break-after:auto}
+  .controls{display:none}
+  .t{font-size:52px}
+}
 </style>
 </head>
 <body>
 <main class="deck" aria-label="VocalCoach product findings deck">
-<section class="slide active" aria-label="Slide 1 of 4: VocalCoach">
 
- <div class="composition"><div class="main"><h1>Practise with a voice coach</h1></div></div>
-
+<section class="slide s-blue active">
+  <h1 class="t">VocalCoach</h1>
+  <p class="t dim">A coach that phones you until you know your words</p>
 </section>
-<section class="slide" aria-label="Slide 2 of 4: Two tasks per word">
 
- <div class="composition"><div class="main"><h2>Two tasks per word</h2><div class="list"><div class="item"><span class="num">01</span><div><strong>Recall the word</strong></div></div><div class="item"><span class="num">02</span><div><strong>Use it in a sentence</strong></div></div><div class="item"><span class="num">03</span><div><strong>Review missed words</strong></div></div></div></div></div>
-
+<section class="slide s-white">
+  <h2 class="t">We studied seven vocabulary apps and the learning research behind them</h2>
+  <p class="t dim">Duolingo, Anki, Vocabulary.com, Quizlet, Memrise, Speak, Praktika</p>
 </section>
-<section class="slide" aria-label="Slide 3 of 4: iOS navigation">
 
- <div class="composition"><div class="main"><h2>iOS navigation</h2><div class="tabs"><span>Today</span><span>Words</span><br><span>Alarm</span><span>Settings</span></div></div></div>
-
+<section class="slide s-yellow">
+  <h2 class="t">Habit keeps people learning, not the algorithm</h2>
+  <p class="t dim">Duolingo: 58.7M daily learners, 84% back the next day</p>
 </section>
-<section class="slide" aria-label="Slide 4 of 4: The alarm constraint">
 
- <div class="composition"><div class="main"><h2>The alarm needs an open page</h2></div></div>
-
+<section class="slide s-white">
+  <h2 class="t">Spacing helps vocabulary more than grammar or pronunciation</h2>
+  <p class="t dim">Kim &amp; Webb 2022: 98 effects, 3,411 learners</p>
 </section>
+
+<section class="slide s-white">
+  <h2 class="t">Even review gaps work as well as growing ones</h2>
+  <p class="t dim">So simple Leitner boxes are enough to start</p>
+</section>
+
+<section class="slide s-green">
+  <h2 class="t">Saying the word teaches you to use it. Picking it from a list does not.</h2>
+  <p class="t dim">Nakata 2015, Yanagisawa 2016</p>
+</section>
+
+<section class="slide s-yellow">
+  <h2 class="t">Self-grading is the weak link</h2>
+  <p class="t dim">Anki retains best, but learners mark their own answers</p>
+</section>
+
+<section class="slide s-white">
+  <h2 class="t">Voice tutors talk, but follow a script</h2>
+  <p class="t dim">Speak and Praktika drill the lesson's phrases, not your words</p>
+</section>
+
+<section class="slide s-red">
+  <h2 class="t">No app makes passing your words the way to stop the alarm</h2>
+  <p class="t dim">That is the gap VocalCoach fills</p>
+</section>
+
+<section class="slide s-blue">
+  <h2 class="t">Every word needs two spoken answers</h2>
+  <p class="t dim">Say it from its meaning. Use it in your own sentence.</p>
+</section>
+
+<section class="slide s-white">
+  <h2 class="t">The coach grades every answer, and can't hang up until you pass</h2>
+  <p class="t dim">The app refuses to end the call early</p>
+</section>
+
+<section class="slide s-green">
+  <h2 class="t">It works on a live call today</h2>
+  <p class="t dim">Mom picked up, taught "ephemeral" and asked for a sentence</p>
+</section>
+
+<section class="slide s-red">
+  <h2 class="t">A web page can only ring while it is open</h2>
+  <p class="t dim">A real alarm needs the native app momsalarm already built</p>
+</section>
+
+<section class="slide s-yellow">
+  <h2 class="t">Next: native alarm, a server for the API key, real learners</h2>
+</section>
+
+<section class="slide s-blue">
+  <h2 class="t">Try it and read the code</h2>
+  <a class="t" href="https://github.com/niap3/VocalCoach" target="_blank" rel="noopener noreferrer">github.com/niap3/VocalCoach</a>
+  <a class="t dim" href="https://niap3.github.io/VocalCoach/" target="_blank" rel="noopener noreferrer">niap3.github.io/VocalCoach</a>
+</section>
+
 <nav class="controls" aria-label="Slide controls"><button id="prev" type="button" aria-label="Previous slide" disabled>&larr;</button><button id="next" type="button" aria-label="Next slide">&rarr;</button></nav>
 </main>
 <script>
@@ -58,11 +137,17 @@
  const prev=document.getElementById('prev');
  const next=document.getElementById('next');
  let index=0;
+ slides.forEach((slide,n)=>{
+  slide.setAttribute('role','group');
+  slide.setAttribute('aria-roledescription','slide');
+  slide.setAttribute('aria-label',`Slide ${n+1} of ${slides.length}`);
+ });
  function show(i){
   index=Math.max(0,Math.min(slides.length-1,i));
   slides.forEach((slide,n)=>{
    slide.classList.toggle('active',n===index);
    slide.setAttribute('aria-hidden',String(n!==index));
+   slide.querySelectorAll('a').forEach(a=>a.tabIndex=n===index?0:-1);
   });
   prev.disabled=index===0;
   next.disabled=index===slides.length-1;
