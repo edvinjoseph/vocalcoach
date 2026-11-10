@@ -177,17 +177,9 @@ button { font-family: inherit; letter-spacing: inherit; }
 .screen.launcher #app { padding: 0; overflow: hidden; }
 .phone.launcher .island, .screen.launcher .statusbar, .screen.launcher .home-indicator { display: none; }
 .launcher-screen {
-  appearance: none; position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0;
-  background: #000; color: #fff; cursor: pointer; overflow: hidden;
+  position: absolute; inset: 0; width: 100%; height: 100%; background: #000; overflow: hidden;
 }
-.launcher-screen:disabled { cursor: default; }
 .launcher-image { display: block; width: 100%; height: 100%; object-fit: cover; }
-.launcher-start {
-  position: absolute; left: 50%; bottom: 15.5%; translate: -50% 0; display: grid; place-items: center;
-  min-height: 32px; padding: 6px 14px; border-radius: 20px; white-space: nowrap;
-  background: rgba(30, 30, 35, 0.92); color: #fff; font-size: 14px; font-weight: 600;
-}
-.launcher-screen:focus-visible { outline-offset: -5px; }
 
 /* ── Incoming call (iOS lock-screen style) ───────────────────────────────── */
 

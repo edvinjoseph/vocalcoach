@@ -33,6 +33,7 @@ let adding = false; // Add-word sheet
 let declines = 0; // how many times the incoming call was declined
 let introTimer = null;
 let introPending = false;
+let resumeIntro = false;
 let ringReturnView = 'launcher';
 
 const esc = (s) =>
@@ -61,24 +62,29 @@ function render() {
   else renderHome();
 }
 
-// The opening is a real iOS Home Screen image. A tap enables the ringtone.
+// The opening is a real iOS Home Screen image before the call arrives.
 function renderLauncher() {
   $app.innerHTML = `
-    <button class="launcher-screen" data-action="start-demo" type="button"
-      aria-label="${introPending ? 'Waiting for the incoming call' : 'Start demo with sound'}" ${introPending ? 'disabled' : ''}>
+    <div class="launcher-screen">
       <img src="${homeScreenImage}" alt="iOS Home Screen" class="launcher-image" fetchpriority="high" draggable="false" />
-      ${introPending ? '' : '<span class="launcher-start">Start demo</span>'}
-    </button>`;
+    </div>`;
 }
 
 function cancelIncomingDemo() {
   clearTimeout(introTimer);
   introTimer = null;
   introPending = false;
+  resumeIntro = false;
 }
 
 function startIncomingDemo() {
   if (introPending || view !== 'launcher' || isShowingFindings()) return;
+  if (document.hidden) {
+    resumeIntro = true;
+    render();
+    return;
+  }
+  resumeIntro = false;
   ringer.unlock();
   declines = 0;
   introPending = true;
@@ -87,7 +93,10 @@ function startIncomingDemo() {
     introTimer = null;
     introPending = false;
     if (view !== 'launcher' || isShowingFindings()) return;
-    if (document.hidden) render();
+    if (document.hidden) {
+      resumeIntro = true;
+      render();
+    }
     else ring();
   }, INCOMING_DELAY_MS);
 }
@@ -616,9 +625,7 @@ $app.addEventListener('click', (e) => {
   if (!el) return;
   const action = el.dataset.action;
 
-  if (action === 'start-demo') {
-    startIncomingDemo();
-  } else if (action === 'tab') {
+  if (action === 'tab') {
     tab = el.dataset.tab;
     editing = false;
     adding = false;
@@ -746,8 +753,10 @@ setInterval(() => {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && view === 'launcher' && introPending) {
     cancelIncomingDemo();
+    resumeIntro = true;
     render();
   }
+  if (!document.hidden && view === 'launcher' && resumeIntro) startIncomingDemo();
   if (!document.hidden && view === 'home') render();
 });
 
@@ -792,6 +801,6 @@ function tickClock() {
 tickClock();
 setInterval(tickClock, 10000);
 
-// Keep the Home Screen visible until a tap enables sound and starts the demo.
+// Show the Home Screen briefly, then bring in the incoming call automatically.
 document.title = TITLE;
-render();
+startIncomingDemo();
