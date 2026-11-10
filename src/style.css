@@ -159,48 +159,79 @@ input::placeholder { color: var(--soft); opacity: 0.7; }
 .ring-note { margin-top: 1.25rem; opacity: 0.85; font-size: 0.95rem; }
 @keyframes throb { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.08); } }
 
-/* ── Call ────────────────────────────────────────────────────────────────── */
+/* ── Call: an iOS-style in-call screen ───────────────────────────────────── */
 
-.call { display: flex; flex-direction: column; gap: 1.25rem; min-height: 100%; }
-.call-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
-.call-name { font-weight: 650; }
-.call-status { color: var(--soft); font-size: 0.9rem; }
-.call-timer { color: var(--soft); font-variant-numeric: tabular-nums; }
-
-/* The word being worked on is the memorable thing. */
-.focus { padding-top: 0.5rem; }
-.focus-word {
-  font-size: clamp(2.2rem, 13cqw, 5rem); font-weight: 700; line-height: 1.05; letter-spacing: -0.02em;
-  font-variation-settings: 'opsz' 96, 'wdth' 90; overflow-wrap: anywhere;
-  color: var(--soft);
+.call {
+  position: absolute; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center;
+  padding: 4.2rem 1.25rem 2.1rem; overflow: hidden; color: #fff; isolation: isolate;
+  background:
+    radial-gradient(120% 55% at 10% 0%, rgba(14, 124, 123, 0.8), transparent 62%),
+    radial-gradient(90% 50% at 100% 60%, rgba(232, 69, 44, 0.34), transparent 64%),
+    linear-gradient(#0b1a21, #091217);
 }
-.focus-word.revealed { color: var(--line); letter-spacing: -0.03em; animation: reveal 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.ios-head { text-align: center; }
+.call-name { font-size: 2.1rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; font-variation-settings: 'opsz' 48; }
+.call-timer { font-size: 1.15rem; opacity: 0.75; font-variant-numeric: tabular-nums; margin-top: 0.15rem; }
+.call-status { font-size: 0.85rem; opacity: 0.55; min-height: 1.3em; }
+
+/* The word being worked on: the one memorable thing, on a glass panel. */
+.focus {
+  width: 100%; margin-top: 0.75rem; padding: 0.9rem 1rem 0.85rem; text-align: center;
+  border-radius: 22px; background: rgba(255, 255, 255, 0.12);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4);
+}
+.focus-word { font-size: clamp(1.6rem, 9cqw, 2.6rem); font-weight: 700; line-height: 1.1; letter-spacing: 0.02em; color: rgba(255, 255, 255, 0.85); overflow-wrap: anywhere; font-variation-settings: 'opsz' 96, 'wdth' 90; }
+.focus-word.revealed { color: #7fe3df; letter-spacing: -0.02em; animation: reveal 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); }
 @keyframes reveal { from { transform: translateY(6px); opacity: 0.2; } to { transform: none; opacity: 1; } }
-.steps { display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem; margin-top: 0.6rem; font-weight: 600; color: var(--soft); }
+.steps { display: flex; justify-content: center; flex-wrap: wrap; gap: 0.2rem 1rem; margin-top: 0.4rem; font-size: 0.9rem; font-weight: 600; color: rgba(255, 255, 255, 0.65); }
 .steps span { display: inline-flex; align-items: center; gap: 0.3rem; }
-.steps .ok { color: var(--line); }
-.tally-line { margin-top: 0.35rem; color: var(--soft); font-size: 0.9rem; }
+.steps .ok { color: #7fe3df; }
+.tally-line { margin-top: 0.15rem; color: rgba(255, 255, 255, 0.55); font-size: 0.8rem; }
 
 /* The voice line moves while the coach speaks and rests while you do. */
-.voice { display: flex; align-items: center; gap: 4px; height: 44px; }
-.voice i { flex: 1; max-width: 8px; height: 4px; border-radius: 4px; background: var(--rule); transition: background-color 0.2s; }
-.voice.speaking i { background: var(--line); animation: wave 0.9s ease-in-out infinite; }
+.voice { display: flex; align-items: center; justify-content: center; gap: 4px; height: 34px; width: 100%; margin: 0.75rem 0 0.25rem; }
+.voice i { flex: 1; max-width: 7px; height: 4px; border-radius: 4px; background: rgba(255, 255, 255, 0.25); transition: background-color 0.2s; }
+.voice.speaking i { background: rgba(255, 255, 255, 0.9); animation: wave 0.9s ease-in-out infinite; }
 .voice.speaking i:nth-child(3n) { animation-delay: -0.3s; }
 .voice.speaking i:nth-child(3n + 1) { animation-delay: -0.6s; }
 .voice.speaking i:nth-child(5n) { animation-duration: 0.7s; }
-@keyframes wave { 0%, 100% { height: 6px; } 50% { height: 40px; } }
+@keyframes wave { 0%, 100% { height: 5px; } 50% { height: 30px; } }
 
-.captions { flex: 1; min-height: 8rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.7rem; padding-right: 0.25rem; }
-.line { max-width: 30em; font-size: 1.1rem; }
+.captions {
+  flex: 1; min-height: 3.5rem; width: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem;
+  scrollbar-width: none; -webkit-mask-image: linear-gradient(transparent, #000 16%); mask-image: linear-gradient(transparent, #000 16%);
+}
+.captions::-webkit-scrollbar { display: none; }
+.line { max-width: 28em; font-size: 1.02rem; line-height: 1.4; color: #fff; }
 .line.coach { align-self: flex-start; }
-.line.user { align-self: flex-end; text-align: right; color: var(--soft); }
-.line.empty { color: var(--soft); font-size: 0.95rem; }
-.event { font-size: 0.9rem; font-weight: 600; }
-.event.good { color: var(--line); }
-.event.bad { color: var(--ring); }
+.line.user { align-self: flex-end; text-align: right; color: rgba(255, 255, 255, 0.6); }
+.line.empty { color: rgba(255, 255, 255, 0.55); font-size: 0.95rem; }
+.event { font-size: 0.85rem; font-weight: 600; }
+.event.good { color: #7fe3df; }
+.event.bad { color: #ff8a73; }
+.mic-label { margin: 0.4rem 0 0.7rem; font-size: 0.85rem; color: rgba(255, 255, 255, 0.65); text-align: center; }
 
-.call-foot { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; padding-top: 0.5rem; border-top: 1.5px solid var(--rule); }
-.mic-label { color: var(--soft); font-size: 0.9rem; }
+.ios-grid { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); justify-items: center; gap: 1rem 0; }
+.ios-key { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; font-size: 0.78rem; color: #fff; }
+.ios-btn {
+  appearance: none; border: 0; width: 70px; height: 70px; border-radius: 50%; color: #fff; cursor: pointer;
+  display: inline-grid; place-items: center; background: rgba(255, 255, 255, 0.17);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  transition: background-color 0.15s, color 0.15s, transform 0.12s;
+}
+span.ios-btn { cursor: default; }
+.ios-btn:active { transform: scale(0.94); }
+.ios-btn.on { background: #fff; color: #0b1a21; }
+.ios-btn:focus-visible { outline-color: #fff; }
+
+.end {
+  appearance: none; border: 0; margin-top: 1.4rem; width: 70px; height: 70px; border-radius: 50%; cursor: pointer;
+  display: grid; place-items: center; color: #fff; background: #ff3b30; transition: transform 0.12s, filter 0.15s;
+}
+.end:hover { filter: brightness(1.1); }
+.end:active { transform: scale(0.94); }
+.end:focus-visible { outline-color: #fff; }
+.end-note { margin-top: 0.4rem; font-size: 0.72rem; color: rgba(255, 255, 255, 0.55); }
 
 /* ── Summary ─────────────────────────────────────────────────────────────── */
 
@@ -287,12 +318,12 @@ body { overflow: hidden; }
   font-weight: 650; font-size: 1rem; font-variant-numeric: tabular-nums;
 }
 .sb-icons { display: flex; align-items: center; gap: 6px; }
-.screen.ringing .statusbar { color: var(--on-ring); }
+.screen.ringing .statusbar, .screen.incall .statusbar { color: #fff; }
 .home-indicator {
   position: absolute; bottom: 8px; left: 50%; translate: -50% 0; z-index: 20;
   width: 38%; height: 5px; border-radius: 3px; background: var(--ink); opacity: 0.55; pointer-events: none;
 }
-.screen.ringing .home-indicator { background: var(--on-ring); }
+.screen.ringing .home-indicator, .screen.incall .home-indicator { background: #fff; }
 
 /* A real phone: the screen is the whole display, no frame. */
 @media (max-width: 520px) {

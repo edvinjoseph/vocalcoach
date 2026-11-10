@@ -40,6 +40,7 @@ let renderedView = null;
 function render() {
   $phone.classList.toggle('ringing', view === 'ring');
   $screen.classList.toggle('ringing', view === 'ring');
+  $screen.classList.toggle('incall', view === 'call');
   if (view !== renderedView) $screen.querySelector('#app').scrollTop = 0;
   renderedView = view;
   if (view === 'ring') renderRing();
@@ -190,6 +191,7 @@ async function startCall(mode) {
     everReady: false,
     setupFailures: 0,
     endAccepted: false,
+    muted: false,
     recap: '',
   };
   call = c;
@@ -375,24 +377,32 @@ function addEvent(c, text, good) {
 
 function renderCall() {
   const c = call;
+  const key = (icon, label, extra = '') =>
+    `<div class="ios-key" aria-hidden="true"><span class="ios-btn ${extra}">${icon}</span><span>${label}</span></div>`;
   $app.innerHTML = `
     <div class="call">
-      <div class="call-head">
-        <div>
-          <div class="call-name">${esc(c.persona.name)}${c.mode === 'alarm' ? ', wake-up call' : ''}</div>
-          <div class="call-status" id="call-status">${esc(c.status)}</div>
-        </div>
+      <div class="ios-head">
+        <div class="call-name">${esc(c.persona.name)}</div>
         <div class="call-timer" id="call-timer">0:00</div>
+        <div class="call-status" id="call-status">${esc(c.status)}</div>
       </div>
       <div class="focus" id="focus"></div>
       <div class="voice" id="voice" aria-hidden="true">${'<i></i>'.repeat(28)}</div>
       <div class="captions" id="captions" aria-live="polite"></div>
-      <div class="call-foot">
-        <span class="mic-label" id="mic-label">Listening…</span>
-        ${c.mode === 'alarm'
-          ? '<button class="link danger" data-action="hangup">Emergency hang-up (counts as failed)</button>'
-          : '<button class="btn danger" data-action="hangup">Hang up</button>'}
+      <div class="mic-label" id="mic-label">Listening…</div>
+      <div class="ios-grid">
+        <div class="ios-key">
+          <button class="ios-btn" id="mute-btn" data-action="mute" aria-pressed="false" aria-label="Mute microphone">${icons.mic(30)}</button>
+          <span>mute</span>
+        </div>
+        ${key(icons.keypad(30), 'keypad')}
+        ${key(icons.speaker(30), 'speaker')}
+        ${key(icons.userPlus(30), 'add call')}
+        ${key(icons.video(30), 'FaceTime')}
+        ${key(icons.contacts(30), 'contacts')}
       </div>
+      <button class="end" data-action="hangup" aria-label="${c.mode === 'alarm' ? 'Hang up (counts as failed)' : 'Hang up'}">${icons.phoneDown(32)}</button>
+      ${c.mode === 'alarm' ? '<div class="end-note">Hanging up counts as failed</div>' : ''}
     </div>`;
   renderProgress(c);
   renderCaptions(c);
@@ -440,7 +450,13 @@ function updateLiveBits(c) {
   if (call !== c) return;
   document.getElementById('voice')?.classList.toggle('speaking', c.speaking);
   const $label = document.getElementById('mic-label');
-  if ($label) $label.textContent = c.endAccepted ? 'Mic off' : c.speaking ? `${c.persona.name} is talking. You can interrupt.` : 'Listening…';
+  if ($label) $label.textContent = c.endAccepted ? 'Mic off' : c.muted ? 'You are muted' : c.speaking ? `${c.persona.name} is talking. You can interrupt.` : 'Listening…';
+  const $mute = document.getElementById('mute-btn');
+  if ($mute) {
+    $mute.classList.toggle('on', c.muted);
+    $mute.setAttribute('aria-pressed', String(c.muted));
+    $mute.innerHTML = c.muted ? icons.micOff(30) : icons.mic(30);
+  }
 }
 
 // ── Summary ─────────────────────────────────────────────────────────────────
@@ -519,6 +535,12 @@ $app.addEventListener('click', (e) => {
     document.title = TITLE;
     view = 'home';
     startCall('alarm').then(() => { if (!call && view === 'home') render(); });
+  } else if (action === 'mute') {
+    if (call) {
+      call.muted = !call.muted;
+      call.audio.muted = call.muted;
+      updateLiveBits(call);
+    }
   } else if (action === 'hangup') {
     if (call) endCall(call, 'hungup');
   } else if (action === 'home') {

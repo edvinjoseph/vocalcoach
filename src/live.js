@@ -148,6 +148,7 @@ export class AudioIO {
     this.stream = null;
     this.node = null;
     this.onChunk = null; // set by LiveCall while a session is live
+    this.muted = false; // the call screen's mute button
   }
 
   async startMic() {
@@ -161,7 +162,7 @@ export class AudioIO {
     URL.revokeObjectURL(url);
     const src = this.micCtx.createMediaStreamSource(this.stream);
     this.node = new AudioWorkletNode(this.micCtx, 'mic-downsampler');
-    this.node.port.onmessage = (e) => this.onChunk?.(e.data);
+    this.node.port.onmessage = (e) => { if (!this.muted) this.onChunk?.(e.data); };
     // A muted path to the destination keeps the worklet being pulled in every browser.
     const mute = this.micCtx.createGain();
     mute.gain.value = 0;
