@@ -64,10 +64,10 @@ Due dates fall at local midnight, so a morning alarm catches everything due that
 Set a time and switch it on. When the alarm fires, the page rings until you answer, and there is no decline
 button. Alarm calls are short. An emergency hang-up exists, but it counts every unfinished word as failed.
 
-Nothing runs once the page is gone or out of sight: the alarm and ringtone only sound while the page is open and
-visible, a call hangs up (mic off, connection closed) as soon as you switch away or close the page, and the app
-sends no system notifications. A real alarm that works when the screen is off needs the native app path that
-momsalarm already solved.
+Nothing outlives the open page. Switching tabs or windows pauses the demo in place (the countdown, the
+ringtone, and a live call: mic, coach audio, timer and nudges) and coming back resumes it. Closing the page ends everything: the call hangs up (mic off, connection closed) and the
+ringtone stops. The app sends no system notifications. A real alarm that works when the screen is off needs the
+native app path that momsalarm already solved.
 
 ## Files
 

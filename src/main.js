@@ -33,7 +33,6 @@ let editing = false; // Words tab edit mode
 let adding = false; // Add-word sheet
 let introTimer = null;
 let introPending = false;
-let resumeIntro = false;
 
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
@@ -76,17 +75,10 @@ function cancelIncomingDemo() {
   clearTimeout(introTimer);
   introTimer = null;
   introPending = false;
-  resumeIntro = false;
 }
 
 function startIncomingDemo() {
   if (introPending || view !== 'launcher' || isShowingFindings()) return;
-  if (document.hidden) {
-    resumeIntro = true;
-    render();
-    return;
-  }
-  resumeIntro = false;
   ringer.unlock();
   introPending = true;
   render();
@@ -94,11 +86,7 @@ function startIncomingDemo() {
     introTimer = null;
     introPending = false;
     if (view !== 'launcher' || isShowingFindings()) return;
-    if (document.hidden) {
-      resumeIntro = true;
-      render();
-    }
-    else ring();
+    ring();
   }, INCOMING_DELAY_MS);
 }
 
@@ -259,9 +247,8 @@ function ring() {
   if (isShowingFindings() || view === 'call' || view === 'ring') return;
   cancelIncomingDemo();
   view = 'ring';
-  // Sound only from a page someone is looking at. No system notifications:
-  // nothing this app does should outlive the open page.
-  if (!document.hidden) ringer.start();
+  // No system notifications: nothing this app does should outlive the open page.
+  ringer.start();
   document.title = 'Incoming call, VocalCoach';
   render();
   $app.querySelector('#answer-slider')?.focus({ preventScroll: true });
@@ -330,6 +317,9 @@ async function startCall(mode) {
     endAccepted: false,
     micLevel: 0,
     muted: false,
+    paused: false, // the tab is in the background
+    pausedAt: 0,
+    pausedTotal: 0,
     micProblem: '', // a capture error after the call started; shown, never fatal
     coachQuietSince: Date.now(),
     picker: null, // list of microphones while the Audio sheet is open
@@ -450,9 +440,9 @@ function handleTool(c, name, args) {
 }
 
 function tick(c) {
-  if (c.ended) return;
+  if (c.ended || c.paused) return; // a paused call keeps its time and sends no nudges
   updateLiveBits(c);
-  const elapsed = Date.now() - c.startedAt;
+  const elapsed = Date.now() - c.startedAt - c.pausedTotal;
   const $t = document.getElementById('call-timer');
   if ($t) $t.textContent = `${String(Math.floor(elapsed / 60000)).padStart(2, '0')}:${String(Math.floor(elapsed / 1000) % 60).padStart(2, '0')}`;
   if (elapsed >= HARD_STOP_MS) {
@@ -631,6 +621,7 @@ function hearingStatus(c) {
   const now = Date.now();
   const device = a.track?.label ? `"${a.track.label.replace(/\s*\(.*\)$/, '')}"` : 'this microphone';
   if (c.endAccepted) return { text: 'Mic off', warn: false };
+  if (c.paused) return { text: 'Paused', warn: false };
   if (c.muted) return { text: `You're muted. ${c.persona.name} can't hear you.`, warn: true };
   if (c.micProblem || a.micState === 'stalled' || a.micState === 'disconnected') {
     return { text: `${c.micProblem || 'The microphone stopped.'} Tap to pick another microphone.`, warn: true };
@@ -831,8 +822,8 @@ $app.addEventListener('submit', (e) => {
 // ── Alarm clock (runs while the tab is open) ────────────────────────────────
 
 setInterval(() => {
-  // A hidden tab never rings. If the alarm time passes while hidden, it rings
-  // when the page is visible again (within the catch-up window), never before.
+  // Paused while the tab is in the background; a time that passed meanwhile
+  // rings on return (within the catch-up window).
   if (document.hidden) return;
   if (isShowingFindings() || view === 'call' || view === 'ring') return;
   const now = Date.now();
@@ -854,21 +845,47 @@ setInterval(() => {
 
 // Re-render the home screen when the day rolls over or the tab comes back, so
 // "due" labels stay current.
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden && view === 'launcher' && introPending) {
-    cancelIncomingDemo();
-    resumeIntro = true;
-    render();
+// Switching tabs or windows pauses the demo in place and coming back resumes it.
+// Nothing is ended or reset; only closing the page ends things (see pagehide).
+let introPaused = false;
+
+function pauseDemo() {
+  if (introPending) {
+    // The incoming call hasn't rung yet: hold it until the visitor is back.
+    clearTimeout(introTimer);
+    introTimer = null;
+    introPending = false;
+    introPaused = true;
   }
-  // Never ring from a tab nobody is looking at; pick the tone back up on return.
-  // A call never continues in the background: leaving the page hangs up, which
-  // turns the microphone off and closes the Gemini connection.
-  if (document.hidden) {
-    ringer.stop();
-    if (call) endCall(call, 'left');
-  } else if (view === 'ring') ringer.start();
-  if (!document.hidden && view === 'launcher' && resumeIntro) startIncomingDemo();
-  if (!document.hidden && view === 'home') render();
+  ringer.stop();
+  if (call && !call.paused) {
+    call.paused = true;
+    call.pausedAt = Date.now();
+    call.audio.suspend();
+    updateLiveBits(call);
+  }
+}
+
+function resumeDemo() {
+  if (introPaused) {
+    introPaused = false;
+    startIncomingDemo();
+  }
+  if (view === 'ring') ringer.start();
+  if (call?.paused) {
+    call.paused = false;
+    call.pausedTotal += Date.now() - call.pausedAt;
+    // Time away isn't silence: don't nudge or warn the moment they return.
+    call.lastActivity = call.coachQuietSince = Date.now();
+    call.audio.resume().catch(() => {});
+    updateLiveBits(call);
+  }
+  if (view === 'home') render();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) pauseDemo();
+  else resumeDemo();
 });
 
 document.addEventListener('keydown', (e) => {

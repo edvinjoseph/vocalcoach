@@ -101,7 +101,8 @@ class PcmPlayer {
   }
 
   play(b64) {
-    if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+    // While the call is paused, new speech queues up and plays on resume.
+    if (!this.held && this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
     const bytes = b64ToBytes(b64);
     const view = new DataView(bytes.buffer);
     const n = bytes.length >> 1;
@@ -187,9 +188,17 @@ export class AudioIO {
   }
 
   resume() {
+    this.player.held = false;
     // Call both resumes synchronously during the answer gesture, before permission prompts.
     return Promise.all([this.micCtx, this.player.ctx].map((ctx) =>
       ctx.state === 'running' ? Promise.resolve() : ctx.resume()));
+  }
+
+  /** Freeze the call in place: no mic frames are captured or sent, and queued speech holds. */
+  suspend() {
+    this.player.held = true;
+    return Promise.all([this.micCtx, this.player.ctx].map((ctx) =>
+      ctx.state === 'running' ? ctx.suspend().catch(() => {}) : Promise.resolve()));
   }
 
   startMic(options = {}) {
