@@ -24,6 +24,16 @@ const SETTINGS_KEY = 'vocalcoach.settings.v1';
 
 export const DEFAULT_MODEL = 'gemini-3.1-flash-live-preview';
 
+// Injected at build time from the GEMINI_API_KEY Actions secret (or .env.local
+// in dev). It is never in the source or git history, but it IS in the shipped
+// JS, so anyone who opens the site can read it. A key the user pastes in
+// Settings overrides it.
+export const BUILT_IN_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
+
+export function effectiveKey(settings) {
+  return settings.apiKey || BUILT_IN_KEY;
+}
+
 const DEFAULT_SETTINGS = {
   apiKey: '',
   persona: 'mom',

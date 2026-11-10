@@ -5,7 +5,7 @@ import { PERSONAS, VOICES, TOOLS, buildPrompt, openingCue, nudgeCue, RESUME_CUE 
 import { AudioIO, LiveCall } from './live.js';
 import { Ringer, nextOccurrence } from './ringer.js';
 import { icons } from './icons.js';
-import { loadSettings, saveSettings, recordStudyDay, currentStreak, DEFAULT_MODEL } from './storage.js';
+import { effectiveKey, BUILT_IN_KEY, loadSettings, saveSettings, recordStudyDay, currentStreak, DEFAULT_MODEL } from './storage.js';
 
 const TITLE = 'VocalCoach';
 const HARD_STOP_MS = 10 * 60 * 1000; // like momsalarm: no call runs forever
@@ -73,7 +73,7 @@ function renderHome() {
       <button class="icon-btn" data-action="settings" aria-label="Open settings">${icons.gear()}</button>
     </header>
 
-    ${settings.apiKey ? '' : `<p class="notice">Add your Gemini API key in <button class="link" data-action="settings">Settings</button> to start a call.</p>`}
+    ${effectiveKey(settings) ? '' : `<p class="notice">Add your Gemini API key in <button class="link" data-action="settings">Settings</button> to start a call.</p>`}
 
     <section class="next" data-enter>
       <p class="tally">${dueCount} to review, ${newCount} new${streak ? `, ${streak}-day streak` : ''}</p>
@@ -155,7 +155,7 @@ function renderRing() {
 
 async function startCall(mode) {
   if (call) return;
-  if (!settings.apiKey) {
+  if (!effectiveKey(settings)) {
     openSettings('Add your Gemini API key to start a call.');
     return;
   }
@@ -204,7 +204,7 @@ function dial(c) {
   const resumed = c.everReady;
   setStatus(c, resumed ? 'Calling back…' : 'Calling…');
   c.live = new LiveCall({
-    apiKey: settings.apiKey,
+    apiKey: effectiveKey(settings),
     model: settings.model || DEFAULT_MODEL,
     voice: settings.voice || c.persona.voice,
     systemPrompt: buildPrompt({ persona: c.persona, mode: c.mode, session: c.session, now: new Date(), resumed }),
@@ -469,7 +469,7 @@ function renderSummary() {
 // ── Settings ────────────────────────────────────────────────────────────────
 
 function openSettings(note = '') {
-  document.getElementById('settings-note').textContent = note;
+  document.getElementById('settings-note').textContent = note || (BUILT_IN_KEY ? 'This site has a built-in key. Paste your own below only if you want to use yours instead.' : '');
   $form.persona.innerHTML = Object.entries(PERSONAS)
     .map(([id, p]) => `<option value="${id}">${esc(p.name)}: ${esc(p.blurb)}</option>`)
     .join('');
