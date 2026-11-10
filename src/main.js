@@ -1,4 +1,5 @@
 import './style.css';
+import './findings.js';
 import { loadDeck, saveDeck, resetDeck, pickSessionWords, applyResult, addWord, removeWord, dueLabel, isDue } from './deck.js';
 import { createSession, grade, isPassed, allDone, remaining, currentFocus } from './session.js';
 import { PERSONAS, VOICES, TOOLS, buildPrompt, openingCue, nudgeCue, RESUME_CUE } from './prompt.js';
@@ -707,7 +708,7 @@ function fitPhone() {
     $phone.style.transform = '';
     return;
   }
-  const s = Math.min(1, (window.innerHeight - 32) / PHONE_H, (window.innerWidth - 32) / PHONE_W);
+  const s = Math.min(1, (window.innerHeight - 64) / PHONE_H, (window.innerWidth - 64) / PHONE_W);
   $fit.style.width = `${PHONE_W * s}px`;
   $fit.style.height = `${PHONE_H * s}px`;
   $phone.style.transform = `scale(${s})`;

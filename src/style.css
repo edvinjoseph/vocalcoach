@@ -287,9 +287,17 @@ span.ios-btn { cursor: default; }
 @media (prefers-color-scheme: dark) { :root { --stage: #05090c; --bezel: #1a262d; } }
 
 html, body { height: 100%; }
-body { overflow: hidden; }
-.stage { height: 100%; display: grid; place-items: center; background: var(--stage); }
+body { overflow-x: hidden; overflow-y: auto; }
+.stage {
+  min-height: 100%; display: grid; grid-template-columns: minmax(0, 414px) minmax(0, 760px);
+  place-items: center; justify-content: center; gap: clamp(32px, 4vw, 72px); padding: 32px; background: var(--stage);
+}
 .fit { width: 414px; height: 868px; }
+.findings { width: 100%; min-width: 0; }
+.findings-frame {
+  display: block; width: 100%; height: clamp(520px, calc(100svh - 64px), 780px);
+  border: 0; border-radius: 16px; background: #ffffff; color-scheme: light;
+}
 .phone {
   position: relative; width: 414px; height: 868px; padding: 12px; background: var(--bezel); border-radius: 62px; transform-origin: top left;
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06) inset, 0 40px 80px -20px rgba(0, 0, 0, 0.45), 0 12px 24px rgba(0, 0, 0, 0.2);
@@ -310,9 +318,16 @@ body { overflow: hidden; }
   .voice.speaking i { height: 24px; }
 }
 
+@media (max-width: 1023px) {
+  .stage { grid-template-columns: minmax(0, 760px); gap: 48px; }
+  .findings-frame { height: 608px; }
+}
+
 /* On a real phone the screen is the whole display, with no frame. */
 @media (max-width: 520px) {
-  .fit { width: 100% !important; height: 100% !important; }
+  .stage { padding: 0; gap: 24px; }
+  .fit { width: 100% !important; height: 100svh !important; }
+  .findings { padding: 0 16px 24px; }
   .phone { width: 100%; height: 100%; padding: 0; border-radius: 0; transform: none !important; box-shadow: none; background: transparent; }
   .screen { border-radius: 0; }
   .island, .statusbar, .home-indicator { display: none; }
