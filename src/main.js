@@ -1,4 +1,5 @@
 import './style.css';
+import homeScreenImage from './assets/ios-home-screen.webp';
 import { cancelFindingsReveal, isShowingFindings, revealFindings, showDemo } from './findings.js';
 import { loadDeck, saveDeck, resetDeck, pickSessionWords, applyResult, addWord, removeWord, dueLabel, isDue } from './deck.js';
 import { createSession, grade, isPassed, allDone, remaining, currentFocus } from './session.js';
@@ -13,6 +14,7 @@ const HARD_STOP_MS = 10 * 60 * 1000; // like momsalarm: no call runs forever
 const SILENCE_MS = 15000;
 const REDIAL_DELAY_MS = 2000;
 const ALARM_CATCH_UP_MS = 15 * 60 * 1000;
+const INCOMING_DELAY_MS = 1800;
 
 const $app = document.getElementById('app');
 const $phone = document.getElementById('phone');
@@ -21,7 +23,7 @@ const $screen = document.getElementById('screen');
 const ringer = new Ringer();
 let deck = loadDeck();
 let settings = loadSettings();
-let view = 'home'; // 'home' | 'ring' | 'call' | 'summary'
+let view = 'launcher'; // 'launcher' | 'home' | 'ring' | 'call' | 'summary'
 let call = null;
 let summary = null;
 let testAlarmAt = null;
@@ -29,6 +31,9 @@ let tab = 'today'; // 'today' | 'words' | 'alarm' | 'settings'
 let editing = false; // Words tab edit mode
 let adding = false; // Add-word sheet
 let declines = 0; // how many times the incoming call was declined
+let introTimer = null;
+let introPending = false;
+let ringReturnView = 'launcher';
 
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
@@ -42,15 +47,49 @@ let renderedView = null;
 
 function render() {
   if (view !== 'summary') cancelFindingsReveal();
+  $phone.classList.toggle('launcher', view === 'launcher');
+  $screen.classList.toggle('launcher', view === 'launcher');
   $phone.classList.toggle('ringing', view === 'ring');
   $screen.classList.toggle('ringing', view === 'ring');
   $screen.classList.toggle('incall', view === 'call');
   if (view !== renderedView) $screen.querySelector('#app').scrollTop = 0;
   renderedView = view;
-  if (view === 'ring') renderRing();
+  if (view === 'launcher') renderLauncher();
+  else if (view === 'ring') renderRing();
   else if (view === 'call') renderCall();
   else if (view === 'summary') renderSummary();
   else renderHome();
+}
+
+// The opening is a real iOS Home Screen image. A tap enables the ringtone.
+function renderLauncher() {
+  $app.innerHTML = `
+    <button class="launcher-screen" data-action="start-demo" type="button"
+      aria-label="${introPending ? 'Waiting for the incoming call' : 'Start demo with sound'}" ${introPending ? 'disabled' : ''}>
+      <img src="${homeScreenImage}" alt="iOS Home Screen" class="launcher-image" fetchpriority="high" draggable="false" />
+      ${introPending ? '' : '<span class="launcher-start">Start demo</span>'}
+    </button>`;
+}
+
+function cancelIncomingDemo() {
+  clearTimeout(introTimer);
+  introTimer = null;
+  introPending = false;
+}
+
+function startIncomingDemo() {
+  if (introPending || view !== 'launcher' || isShowingFindings()) return;
+  ringer.unlock();
+  declines = 0;
+  introPending = true;
+  render();
+  introTimer = setTimeout(() => {
+    introTimer = null;
+    introPending = false;
+    if (view !== 'launcher' || isShowingFindings()) return;
+    if (document.hidden) render();
+    else ring();
+  }, INCOMING_DELAY_MS);
 }
 
 // ── Home ────────────────────────────────────────────────────────────────────
@@ -208,6 +247,8 @@ function renderHome() {
 
 function ring() {
   if (isShowingFindings() || view === 'call' || view === 'ring') return;
+  cancelIncomingDemo();
+  ringReturnView = view === 'launcher' ? 'launcher' : 'home';
   view = 'ring';
   ringer.start();
   document.title = 'Incoming call, VocalCoach';
@@ -217,6 +258,7 @@ function ring() {
     }
   } catch { /* notifications are optional */ }
   render();
+  $app.querySelector('[data-action="answer"]')?.focus({ preventScroll: true });
 }
 
 function renderRing() {
@@ -237,6 +279,7 @@ function renderRing() {
 
 async function startCall(mode) {
   if (call) return;
+  cancelIncomingDemo();
   if (!effectiveKey(settings)) {
     tab = 'settings';
     view = 'home';
@@ -573,7 +616,9 @@ $app.addEventListener('click', (e) => {
   if (!el) return;
   const action = el.dataset.action;
 
-  if (action === 'tab') {
+  if (action === 'start-demo') {
+    startIncomingDemo();
+  } else if (action === 'tab') {
     tab = el.dataset.tab;
     editing = false;
     adding = false;
@@ -589,12 +634,12 @@ $app.addEventListener('click', (e) => {
     // Declining doesn't get you out of it: she calls back.
     ringer.stop();
     document.title = TITLE;
-    view = 'home';
+    view = ringReturnView;
     tab = 'today';
     render();
     if (declines < 2) {
       declines += 1;
-      setTimeout(() => { if (view === 'home' && !call) ring(); }, 6000);
+      setTimeout(() => { if ((view === 'home' || view === 'launcher') && !call) ring(); }, 6000);
     }
   } else if (action === 'mute') {
     if (call) {
@@ -699,6 +744,10 @@ setInterval(() => {
 // Re-render the home screen when the day rolls over or the tab comes back, so
 // "due" labels stay current.
 document.addEventListener('visibilitychange', () => {
+  if (document.hidden && view === 'launcher' && introPending) {
+    cancelIncomingDemo();
+    render();
+  }
   if (!document.hidden && view === 'home') render();
 });
 
@@ -724,16 +773,17 @@ fitPhone();
 
 document.getElementById('replay-demo').addEventListener('click', () => {
   showDemo();
+  cancelIncomingDemo();
   ringer.stop();
   summary = null;
-  view = 'home';
+  view = 'launcher';
   tab = 'today';
   editing = false;
   adding = false;
   declines = 0;
   testAlarmAt = null;
-  ring();
-  $app.querySelector('[data-action="answer"]')?.focus({ preventScroll: true });
+  render();
+  startIncomingDemo();
 });
 
 function tickClock() {
@@ -742,8 +792,6 @@ function tickClock() {
 tickClock();
 setInterval(tickClock, 10000);
 
-// The demo opens with the phone ringing. Browsers won't play sound before a
-// tap, so it buzzes silently until the visitor answers.
-view = 'ring';
-document.title = 'Incoming call, VocalCoach';
+// Keep the Home Screen visible until a tap enables sound and starts the demo.
+document.title = TITLE;
 render();

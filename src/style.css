@@ -172,15 +172,37 @@ button { font-family: inherit; letter-spacing: inherit; }
 @keyframes rise { from { transform: translateY(100%); } to { transform: none; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
+/* ── Demo opening ──────────────────────────────────────────────────────── */
+
+.screen.launcher #app { padding: 0; overflow: hidden; }
+.phone.launcher .island, .screen.launcher .statusbar, .screen.launcher .home-indicator { display: none; }
+.launcher-screen {
+  appearance: none; position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0;
+  background: #000; color: #fff; cursor: pointer; overflow: hidden;
+}
+.launcher-screen:disabled { cursor: default; }
+.launcher-image { display: block; width: 100%; height: 100%; object-fit: cover; }
+.launcher-start {
+  position: absolute; left: 50%; bottom: 15.5%; translate: -50% 0; display: grid; place-items: center;
+  min-height: 32px; padding: 6px 14px; border-radius: 20px; white-space: nowrap;
+  background: rgba(30, 30, 35, 0.92); color: #fff; font-size: 14px; font-weight: 600;
+}
+.launcher-screen:focus-visible { outline-offset: -5px; }
+
 /* ── Incoming call (iOS lock-screen style) ───────────────────────────────── */
 
 .ring {
   position: absolute; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; color: #fff;
   padding: 120px 28px 64px; isolation: isolate;
+  animation: incoming-call 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
   background:
     radial-gradient(120% 55% at 10% 0%, rgba(14, 124, 123, 0.8), transparent 62%),
     radial-gradient(90% 50% at 100% 60%, rgba(232, 69, 44, 0.34), transparent 64%),
     linear-gradient(#0b1a21, #091217);
+}
+@keyframes incoming-call {
+  from { opacity: 0; transform: translateY(-30px); }
+  to { opacity: 1; transform: none; }
 }
 .ring-name { font-size: 38px; line-height: 44px; font-weight: 600; letter-spacing: 0; text-align: center; }
 .ring-sub { margin-top: 2px; font-size: 20px; color: rgba(255, 255, 255, 0.65); }

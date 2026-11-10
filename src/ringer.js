@@ -6,6 +6,7 @@ export class Ringer {
   constructor() {
     this.ctx = null;
     this.timer = null;
+    this.oscillators = new Set();
   }
 
   get unlocked() {
@@ -14,8 +15,8 @@ export class Ringer {
 
   unlock() {
     try {
-      if (!this.ctx) this.ctx = new AudioContext();
-      if (this.ctx.state === 'suspended') this.ctx.resume();
+      if (!this.ctx || this.ctx.state === 'closed') this.ctx = new AudioContext();
+      if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
     } catch {
       /* no audio available */
     }
@@ -36,11 +37,21 @@ export class Ringer {
   stop() {
     clearInterval(this.timer);
     this.timer = null;
+    for (const osc of this.oscillators) {
+      try { osc.stop(); } catch { /* already finished */ }
+    }
+    this.oscillators.clear();
   }
 
   _beep(t, freq, dur) {
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
+    this.oscillators.add(osc);
+    osc.onended = () => {
+      this.oscillators.delete(osc);
+      osc.disconnect();
+      gain.disconnect();
+    };
     osc.type = 'sine';
     osc.frequency.value = freq;
     gain.gain.setValueAtTime(0, t);
