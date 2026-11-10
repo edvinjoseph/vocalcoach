@@ -1,5 +1,6 @@
 import './style.css';
 import homeScreenImage from './assets/ios-home-screen.webp';
+import { wireAnswerSlider } from './answer-slider.js';
 import { cancelFindingsReveal, isShowingFindings, revealFindings, showDemo } from './findings.js';
 import { loadDeck, saveDeck, resetDeck, pickSessionWords, applyResult, addWord, removeWord, dueLabel, isDue } from './deck.js';
 import { createSession, grade, isPassed, allDone, remaining, currentFocus } from './session.js';
@@ -30,11 +31,9 @@ let testAlarmAt = null;
 let tab = 'today'; // 'today' | 'words' | 'alarm' | 'settings'
 let editing = false; // Words tab edit mode
 let adding = false; // Add-word sheet
-let declines = 0; // how many times the incoming call was declined
 let introTimer = null;
 let introPending = false;
 let resumeIntro = false;
-let ringReturnView = 'launcher';
 
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
@@ -42,7 +41,10 @@ const esc = (s) =>
 const persona = () => PERSONAS[settings.persona] || PERSONAS.mom;
 
 // Any tap unlocks audio, so a later alarm can ring without a fresh gesture.
-document.addEventListener('pointerdown', () => ringer.unlock());
+document.addEventListener('pointerdown', () => {
+  ringer.unlock();
+  if (call && !call.ended) call.audio.resume().catch(() => {});
+});
 
 let renderedView = null;
 
@@ -86,7 +88,6 @@ function startIncomingDemo() {
   }
   resumeIntro = false;
   ringer.unlock();
-  declines = 0;
   introPending = true;
   render();
   introTimer = setTimeout(() => {
@@ -257,7 +258,6 @@ function renderHome() {
 function ring() {
   if (isShowingFindings() || view === 'call' || view === 'ring') return;
   cancelIncomingDemo();
-  ringReturnView = view === 'launcher' ? 'launcher' : 'home';
   view = 'ring';
   ringer.start();
   document.title = 'Incoming call, VocalCoach';
@@ -267,21 +267,33 @@ function ring() {
     }
   } catch { /* notifications are optional */ }
   render();
-  $app.querySelector('[data-action="answer"]')?.focus({ preventScroll: true });
+  $app.querySelector('#answer-slider')?.focus({ preventScroll: true });
+}
+
+function answerIncomingCall() {
+  if (view !== 'ring' || call) return;
+  ringer.stop();
+  document.title = TITLE;
+  view = 'home';
+  startCall('alarm').then(() => { if (!call && view === 'home') render(); });
 }
 
 function renderRing() {
   const p = persona();
   $app.innerHTML = `
-    <div class="ring" role="alertdialog" aria-label="${esc(p.name)} is calling">
+    <div class="ring" role="alertdialog" aria-modal="true" aria-label="${esc(p.name)} is calling">
       <h1 class="ring-name">${esc(p.name)}</h1>
       <div class="ring-sub">VocalCoach audio…</div>
       <div class="ring-actions">
-        <div class="ring-key"><button class="ring-btn decline" data-action="decline" aria-label="Decline">${icons.phoneDown(34)}</button><span>Decline</span></div>
-        <div class="ring-key"><button class="ring-btn accept" data-action="answer" aria-label="Accept">${icons.phone(34)}</button><span>Accept</span></div>
+        <div class="answer-control">
+          <span class="answer-caption" aria-hidden="true">slide to answer</span>
+          <input class="answer-input" id="answer-slider" type="range" min="0" max="100" step="1" value="0" aria-label="Slide to answer" />
+          <span class="answer-symbol" aria-hidden="true">${icons.phone(30)}</span>
+        </div>
       </div>
-      <p class="ring-note">Accept, allow the microphone, and say hello.</p>
+      <p class="ring-note">Allow microphone access when asked.</p>
     </div>`;
+  wireAnswerSlider($app.querySelector('#answer-slider'), answerIncomingCall);
 }
 
 // ── Call ────────────────────────────────────────────────────────────────────
@@ -319,11 +331,14 @@ async function startCall(mode) {
     everReady: false,
     setupFailures: 0,
     endAccepted: false,
-    muted: false,
+    micLevel: 0,
     recap: '',
   };
   call = c;
   view = 'call';
+  audio.onMicState = () => updateLiveBits(c);
+  audio.onMicLevel = (level) => { c.micLevel = level; updateLiveBits(c); };
+  audio.onError = (error) => endCall(c, 'error', `Microphone unavailable: ${error.message}`);
   render();
 
   try {
@@ -332,6 +347,7 @@ async function startCall(mode) {
     endCall(c, 'error', `Microphone unavailable: ${err?.message || err}`);
     return;
   }
+  if (c.ended) return;
   dial(c);
   c.tick = setInterval(() => tick(c), 1000);
 }
@@ -352,6 +368,7 @@ function dial(c) {
       c.setupFailures = 0;
       c.lastActivity = Date.now();
       setStatus(c, 'On the line');
+      updateLiveBits(c);
       c.live.sendText(resumed ? RESUME_CUE : openingCue(c.mode, c.session));
     },
     onToolCall: (name, args) => handleTool(c, name, args),
@@ -432,6 +449,7 @@ function handleTool(c, name, args) {
 
 function tick(c) {
   if (c.ended) return;
+  updateLiveBits(c);
   const elapsed = Date.now() - c.startedAt;
   const $t = document.getElementById('call-timer');
   if ($t) $t.textContent = `${Math.floor(elapsed / 60000)}:${String(Math.floor(elapsed / 1000) % 60).padStart(2, '0')}`;
@@ -506,8 +524,6 @@ function addEvent(c, text, good) {
 
 function renderCall() {
   const c = call;
-  const key = (icon, label, extra = '') =>
-    `<div class="ios-key" aria-hidden="true"><span class="ios-btn ${extra}">${icon}</span><span>${label}</span></div>`;
   $app.innerHTML = `
     <div class="call">
       <div class="ios-head">
@@ -518,17 +534,9 @@ function renderCall() {
       <div class="focus" id="focus"></div>
       <div class="voice" id="voice" aria-hidden="true">${'<i></i>'.repeat(28)}</div>
       <div class="captions" id="captions" aria-live="polite"></div>
-      <div class="mic-label" id="mic-label">Listening…</div>
-      <div class="ios-grid">
-        <div class="ios-key">
-          <button class="ios-btn" id="mute-btn" data-action="mute" aria-pressed="false" aria-label="Mute microphone">${icons.mic(30)}</button>
-          <span>mute</span>
-        </div>
-        ${key(icons.keypad(30), 'keypad')}
-        ${key(icons.speaker(30), 'speaker')}
-        ${key(icons.userPlus(30), 'add call')}
-        ${key(icons.video(30), 'FaceTime')}
-        ${key(icons.contacts(30), 'contacts')}
+      <div class="mic-status">
+        <span class="mic-signal" id="mic-signal" aria-hidden="true">${'<i></i>'.repeat(5)}</span>
+        <span class="mic-label" id="mic-label">Connecting microphone…</span>
       </div>
       <button class="end" data-action="hangup" aria-label="${c.mode === 'alarm' ? 'Hang up (counts as failed)' : 'Hang up'}">${icons.phoneDown(32)}</button>
       ${c.mode === 'alarm' ? '<div class="end-note">Hanging up counts as failed</div>' : ''}
@@ -578,13 +586,15 @@ function renderCaptions(c) {
 function updateLiveBits(c) {
   if (call !== c) return;
   document.getElementById('voice')?.classList.toggle('speaking', c.speaking);
+  document.getElementById('mic-signal')?.style.setProperty('--mic-level', String(c.endAccepted || c.audio.micState !== 'active' ? 0 : c.micLevel));
   const $label = document.getElementById('mic-label');
-  if ($label) $label.textContent = c.endAccepted ? 'Mic off' : c.muted ? 'You are muted' : c.speaking ? `${c.persona.name} is talking. You can interrupt.` : 'Listening…';
-  const $mute = document.getElementById('mute-btn');
-  if ($mute) {
-    $mute.classList.toggle('on', c.muted);
-    $mute.setAttribute('aria-pressed', String(c.muted));
-    $mute.innerHTML = c.muted ? icons.micOff(30) : icons.mic(30);
+  if ($label) {
+    $label.textContent = c.endAccepted ? 'Mic off'
+      : c.audio.micState === 'paused' ? 'Microphone paused. Tap to resume.'
+      : c.audio.micState !== 'active' ? 'Connecting microphone…'
+      : !c.live?.ready ? 'Connecting to coach…'
+      : Date.now() - c.audio.lastSentAt > 1500 ? 'Waiting for microphone audio…'
+      : c.speaking ? `${c.persona.name} is talking. You can interrupt.` : 'Listening…';
   }
 }
 
@@ -632,29 +642,7 @@ $app.addEventListener('click', (e) => {
     render();
     $app.scrollTop = 0;
   } else if (action === 'practice') startCall('practice');
-  else if (action === 'answer') {
-    ringer.stop();
-    document.title = TITLE;
-    view = 'home';
-    startCall('alarm').then(() => { if (!call && view === 'home') render(); });
-  } else if (action === 'decline') {
-    // Declining doesn't get you out of it: she calls back.
-    ringer.stop();
-    document.title = TITLE;
-    view = ringReturnView;
-    tab = 'today';
-    render();
-    if (declines < 2) {
-      declines += 1;
-      setTimeout(() => { if ((view === 'home' || view === 'launcher') && !call) ring(); }, 6000);
-    }
-  } else if (action === 'mute') {
-    if (call) {
-      call.muted = !call.muted;
-      call.audio.muted = call.muted;
-      updateLiveBits(call);
-    }
-  } else if (action === 'hangup') {
+  else if (action === 'hangup') {
     if (call) endCall(call, 'hungup');
   } else if (action === 'home') {
     if (view === 'summary' && summary?.outcome !== 'error') {
@@ -789,7 +777,6 @@ document.getElementById('replay-demo').addEventListener('click', () => {
   tab = 'today';
   editing = false;
   adding = false;
-  declines = 0;
   testAlarmAt = null;
   render();
   startIncomingDemo();

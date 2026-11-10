@@ -24,33 +24,51 @@ const IDLE_DEBOUNCE_MS = 300;
 const GOODBYE_NO_REPLY_MS = 6000;
 const GOODBYE_HARD_LIMIT_MS = 20000;
 
+export class Pcm16Chunker {
+  constructor(inputRate, emit) {
+    this.ratio = inputRate / 16000;
+    this.emit = emit;
+    this.phase = 0;
+    this.acc = 0;
+    this.n = 0;
+    this.out = new Int16Array(1600);
+    this.len = 0;
+  }
+
+  push(samples) {
+    for (const sample of samples) {
+      this.acc += sample;
+      this.n++;
+      this.phase++;
+      if (this.phase < this.ratio) continue;
+      this.phase -= this.ratio;
+      const value = Math.max(-1, Math.min(1, this.acc / this.n));
+      this.acc = 0;
+      this.n = 0;
+      this.out[this.len++] = value < 0 ? value * 0x8000 : value * 0x7fff;
+      if (this.len === this.out.length) {
+        this.emit(this.out.buffer);
+        this.out = new Int16Array(1600);
+        this.len = 0;
+      }
+    }
+  }
+}
+
 const WORKLET_SRC = `
+const Pcm16Chunker = ${Pcm16Chunker.toString()};
 class MicDownsampler extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.ratio = sampleRate / ${IN_RATE};
-    this.phase = 0; this.acc = 0; this.n = 0;
-    this.size = ${IN_RATE / 10};
-    this.out = new Int16Array(this.size); this.len = 0;
+    this.encoder = new Pcm16Chunker(sampleRate, (buffer) => {
+      this.port.postMessage(buffer, [buffer]);
+    });
   }
-  process(inputs) {
+  process(inputs, outputs) {
+    // Keep a pulled output without playing the user's microphone back to them.
+    for (const channel of outputs[0] || []) channel.fill(0);
     const x = inputs[0] && inputs[0][0];
-    if (!x) return true;
-    for (let i = 0; i < x.length; i++) {
-      // Box-filter decimation: average the input samples that fall into each
-      // output sample. Crude, but a fine low-pass for speech.
-      this.acc += x[i]; this.n++; this.phase += 1;
-      if (this.phase >= this.ratio) {
-        this.phase -= this.ratio;
-        let s = this.acc / this.n; this.acc = 0; this.n = 0;
-        s = s < -1 ? -1 : s > 1 ? 1 : s;
-        this.out[this.len++] = s < 0 ? s * 0x8000 : s * 0x7fff;
-        if (this.len === this.size) {
-          this.port.postMessage(this.out.buffer, [this.out.buffer]);
-          this.out = new Int16Array(this.size); this.len = 0;
-        }
-      }
-    }
+    if (x) this.encoder.push(x);
     return true;
   }
 }
@@ -83,7 +101,7 @@ class PcmPlayer {
   }
 
   play(b64) {
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
     const bytes = b64ToBytes(b64);
     const view = new DataView(bytes.buffer);
     const n = bytes.length >> 1;
@@ -147,30 +165,150 @@ export class AudioIO {
     this.micCtx = new AudioContext();
     this.stream = null;
     this.node = null;
+    this.source = null;
     this.onChunk = null; // set by LiveCall while a session is live
-    this.muted = false; // the call screen's mute button
+    this.onMicLevel = null;
+    this.onMicState = null;
+    this.onError = null;
+    this.micState = 'starting';
+    this.micFrames = 0;
+    this.lastMicAt = 0;
+    this.lastSentAt = 0;
+    this.closed = false;
+    this.micCtx.onstatechange = () => {
+      if (!this.closed && this.micCtx.state !== 'running') this._setMicState('paused');
+    };
+  }
+
+  resume() {
+    // Call both resumes synchronously during the answer gesture, before permission prompts.
+    return Promise.all([this.micCtx, this.player.ctx].map((ctx) =>
+      ctx.state === 'running' ? Promise.resolve() : ctx.resume()));
   }
 
   async startMic() {
     if (this.node) return;
-    this.stream = await navigator.mediaDevices.getUserMedia({
+    const activation = this.resume();
+    activation.catch(() => {});
+    const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
     });
-    if (this.micCtx.state === 'suspended') await this.micCtx.resume();
+    if (this.closed) {
+      stream.getTracks().forEach((track) => track.stop());
+      throw new DOMException('Call already ended', 'AbortError');
+    }
+    this.stream = stream;
+    this.track = stream.getAudioTracks()[0];
+    if (!this.track || this.track.readyState === 'ended') throw new Error('No working microphone was found.');
+    this.track.addEventListener('ended', () => {
+      if (!this.closed) this.onError?.(new Error('The microphone disconnected. Reconnect it and try the call again.'));
+    });
+    this.track.addEventListener('mute', () => { if (!this.closed) this._setMicState('paused'); });
+    await activation;
+    await this.resume();
+    if (this.closed) throw new DOMException('Call already ended', 'AbortError');
+    this.source = this.micCtx.createMediaStreamSource(stream);
+    try {
+      await this._startWorklet();
+    } catch {
+      if (this.closed) throw new DOMException('Call already ended', 'AbortError');
+      this._startFallback();
+    }
+    if (!await this._waitForFrames(1800) && !this.closed && this.processorMode === 'worklet') {
+      this._startFallback();
+    }
+    if (this.closed) throw new DOMException('Call already ended', 'AbortError');
+    if (!await this._waitForFrames(1800)) throw new Error('No audio is reaching the microphone. Check your input device and try again.');
+    this.watchdog = setInterval(() => {
+      if (this.closed) return;
+      if (this.micCtx.state !== 'running' || this.track.muted) return this._setMicState('paused');
+      if (Date.now() - this.lastMicAt < 2000) return;
+      if (this.processorMode === 'worklet') {
+        try { this._startFallback(); this.lastMicAt = Date.now(); } catch (error) { this.onError?.(error); }
+      } else this.onError?.(new Error('Microphone capture stopped. Check your input device and try again.'));
+    }, 1000);
+  }
+
+  async _startWorklet() {
+    if (!this.micCtx.audioWorklet || typeof AudioWorkletNode === 'undefined') throw new Error('AudioWorklet unavailable');
     const url = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
-    await this.micCtx.audioWorklet.addModule(url);
-    URL.revokeObjectURL(url);
-    const src = this.micCtx.createMediaStreamSource(this.stream);
-    this.node = new AudioWorkletNode(this.micCtx, 'mic-downsampler');
-    this.node.port.onmessage = (e) => { if (!this.muted) this.onChunk?.(e.data); };
-    // A muted path to the destination keeps the worklet being pulled in every browser.
-    const mute = this.micCtx.createGain();
-    mute.gain.value = 0;
-    src.connect(this.node).connect(mute).connect(this.micCtx.destination);
+    try { await this.micCtx.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
+    if (this.closed) throw new DOMException('Call already ended', 'AbortError');
+    this.node = new AudioWorkletNode(this.micCtx, 'mic-downsampler', {
+      numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1], channelCount: 1, channelCountMode: 'explicit',
+    });
+    this.processorMode = 'worklet';
+    this.node.port.onmessage = (event) => this._receiveMic(event.data);
+    this.node.onprocessorerror = () => {
+      if (!this.closed) {
+        try { this._startFallback(); } catch (error) { this.onError?.(error); }
+      }
+    };
+    this.source.connect(this.node);
+    this.node.connect(this.micCtx.destination);
+  }
+
+  _startFallback() {
+    this._disconnectProcessor();
+    const encoder = new Pcm16Chunker(this.micCtx.sampleRate, (buffer) => this._receiveMic(buffer));
+    this.node = this.micCtx.createScriptProcessor(4096, 1, 1);
+    this.processorMode = 'fallback';
+    this.node.onaudioprocess = (event) => {
+      event.outputBuffer.getChannelData(0).fill(0);
+      encoder.push(event.inputBuffer.getChannelData(0));
+    };
+    this.source.connect(this.node);
+    this.node.connect(this.micCtx.destination);
+  }
+
+  _waitForFrames(timeout) {
+    if (this.micFrames) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      this.finishFirstFrame = (received) => {
+        clearTimeout(this.firstFrameTimer);
+        this.finishFirstFrame = null;
+        resolve(received);
+      };
+      this.firstFrameTimer = setTimeout(() => this.finishFirstFrame?.(false), timeout);
+    });
+  }
+
+  _receiveMic(buffer) {
+    if (this.closed || !buffer?.byteLength) return;
+    this.micFrames++;
+    this.lastMicAt = Date.now();
+    this.finishFirstFrame?.(true);
+    this.onChunk?.(buffer);
+    const samples = new Int16Array(buffer);
+    let energy = 0;
+    for (const sample of samples) energy += (sample / 32768) ** 2;
+    this._setMicState(this.track?.muted ? 'paused' : 'active');
+    this.onMicLevel?.(Math.min(1, Math.sqrt(energy / samples.length) * 8));
+  }
+
+  _setMicState(state) {
+    if (this.micState === state) return;
+    this.micState = state;
+    this.onMicState?.(state);
+  }
+
+  _disconnectProcessor() {
+    this.source?.disconnect();
+    if (this.node?.port) this.node.port.onmessage = null;
+    if (this.node) { this.node.onaudioprocess = null; this.node.onprocessorerror = null; this.node.disconnect(); }
+    this.node = null;
   }
 
   close() {
+    if (this.closed) return;
+    this.closed = true;
+    clearInterval(this.watchdog);
+    this.finishFirstFrame?.(false);
     this.onChunk = null;
+    this.onMicLevel = null;
+    this.onMicState = null;
+    this.onError = null;
+    this._disconnectProcessor();
     this.stream?.getTracks().forEach((t) => t.stop());
     this.micCtx.close().catch(() => {});
     this.player.close();
@@ -225,6 +363,14 @@ export class LiveCall {
           tools: [{ functionDeclarations: this.o.tools }],
           inputAudioTranscription: {},
           outputAudioTranscription: {},
+          realtimeInputConfig: {
+            automaticActivityDetection: {
+              disabled: false,
+              startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
+              prefixPaddingMs: 300,
+              silenceDurationMs: 700,
+            },
+          },
         },
       }));
     };
@@ -278,10 +424,11 @@ export class LiveCall {
     if (msg.setupComplete) {
       clearTimeout(this.setupTimer);
       this.ready = true;
-      this.audio.onChunk = (buf) =>
-        this._send({
+      this.audio.onChunk = (buf) => {
+        if (this._send({
           realtimeInput: { audio: { data: bytesToB64(new Uint8Array(buf)), mimeType: `audio/pcm;rate=${IN_RATE}` } },
-        });
+        })) this.audio.lastSentAt = Date.now();
+      };
       this.o.onReady?.();
       return;
     }

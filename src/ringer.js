@@ -1,4 +1,4 @@
-// Phone-style ringtone made with WebAudio, so there is no audio file to ship.
+// A quiet, bell-like ringtone made with WebAudio.
 // Browsers only let audio start after the user has interacted with the page,
 // so the context is unlocked on the first tap and reused when the alarm fires.
 
@@ -28,10 +28,13 @@ export class Ringer {
     if (!this.ctx) return;
     const ring = () => {
       const t = this.ctx.currentTime + 0.05;
-      [[0, 880], [0.25, 660], [0.5, 880], [0.75, 660]].forEach(([o, f]) => this._beep(t + o, f, 0.2));
+      [[0, 523.25], [0.24, 659.25], [0.48, 783.99], [0.9, 659.25]].forEach(([o, f]) => {
+        this._tone(t + o, f, 0.075, 1.05);
+        this._tone(t + o, f * 2, 0.01, 0.65);
+      });
     };
     ring();
-    this.timer = setInterval(ring, 2000);
+    this.timer = setInterval(ring, 4800);
   }
 
   stop() {
@@ -43,7 +46,7 @@ export class Ringer {
     this.oscillators.clear();
   }
 
-  _beep(t, freq, dur) {
+  _tone(t, freq, volume, dur) {
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     this.oscillators.add(osc);
@@ -55,8 +58,8 @@ export class Ringer {
     osc.type = 'sine';
     osc.frequency.value = freq;
     gain.gain.setValueAtTime(0, t);
-    gain.gain.linearRampToValueAtTime(0.3, t + 0.02);
-    gain.gain.setValueAtTime(0.3, t + dur - 0.03);
+    gain.gain.linearRampToValueAtTime(volume, t + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur - 0.05);
     gain.gain.linearRampToValueAtTime(0, t + dur);
     osc.connect(gain).connect(this.ctx.destination);
     osc.start(t);

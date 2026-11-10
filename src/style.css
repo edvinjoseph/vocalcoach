@@ -198,16 +198,31 @@ button { font-family: inherit; letter-spacing: inherit; }
 }
 .ring-name { font-size: 38px; line-height: 44px; font-weight: 600; letter-spacing: 0; text-align: center; }
 .ring-sub { margin-top: 2px; font-size: 20px; color: rgba(255, 255, 255, 0.65); }
-.ring-actions { margin-top: auto; width: 100%; display: flex; justify-content: space-between; padding: 0 16px; }
-.ring-key { display: flex; flex-direction: column; align-items: center; gap: 10px; font-size: 15px; color: #fff; }
-.ring-btn {
-  appearance: none; border: 0; width: 76px; height: 76px; border-radius: 50%; color: #fff; cursor: pointer;
-  display: grid; place-items: center; transition: transform 0.12s, filter 0.15s;
+.ring-actions { margin-top: auto; width: 100%; }
+.answer-control { position: relative; height: 76px; border-radius: 40px; background: rgba(255, 255, 255, 0.16); }
+.answer-caption {
+  position: absolute; inset: 0 18px 0 76px; display: grid; place-items: center;
+  font-size: 20px; font-weight: 400; letter-spacing: 0; color: #fff; opacity: var(--answer-label-opacity, 1);
+  pointer-events: none;
 }
-.ring-btn:active { transform: scale(0.94); }
-.ring-btn.decline { background: #ff3b30; }
-.ring-btn.accept { background: #34c759; }
-.ring-btn:focus-visible { outline-color: #fff; }
+.answer-input {
+  appearance: none; -webkit-appearance: none; position: absolute; inset: 4px; width: calc(100% - 8px);
+  height: 68px; margin: 0; padding: 0; border: 0; border-radius: 36px; background: transparent;
+  cursor: grab; touch-action: pan-y;
+}
+.answer-input:active { cursor: grabbing; }
+.answer-input::-webkit-slider-runnable-track { height: 68px; background: transparent; }
+.answer-input::-webkit-slider-thumb {
+  appearance: none; -webkit-appearance: none; width: 68px; height: 68px;
+  border: 0; border-radius: 50%; background: #34c759;
+}
+.answer-input::-moz-range-track { height: 68px; background: transparent; }
+.answer-input::-moz-range-thumb { width: 68px; height: 68px; border: 0; border-radius: 50%; background: #34c759; }
+.answer-input:focus-visible { outline-color: #fff; outline-offset: 6px; }
+.answer-symbol {
+  position: absolute; top: 4px; left: 4px; width: 68px; height: 68px; display: grid; place-items: center;
+  transform: translateX(var(--answer-offset, 0px)); color: #fff; pointer-events: none;
+}
 .ring-note { margin-top: 28px; font-size: 13px; color: rgba(255, 255, 255, 0.55); text-align: center; }
 
 .phone.ringing { animation: buzz 2.4s ease-in-out infinite; }
@@ -265,19 +280,13 @@ button { font-family: inherit; letter-spacing: inherit; }
 .event { font-size: 13px; font-weight: 600; }
 .event.good { color: #7fe3df; }
 .event.bad { color: #ff8a73; }
-.mic-label { margin: 6px 0 10px; font-size: 13px; color: rgba(255, 255, 255, 0.65); text-align: center; }
+.mic-status { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 24px; margin: 6px 0 10px; }
+.mic-label { font-size: 13px; color: rgba(255, 255, 255, 0.65); text-align: center; }
+.mic-signal { display: flex; align-items: center; gap: 2px; height: 18px; flex-shrink: 0; }
+.mic-signal i { width: 3px; height: calc(3px + var(--mic-level, 0) * 15px); border-radius: 2px; background: #7fe3df; }
+.mic-signal i:nth-child(2n) { height: calc(3px + var(--mic-level, 0) * 10px); }
+.mic-signal i:first-child, .mic-signal i:last-child { height: calc(3px + var(--mic-level, 0) * 6px); }
 
-.ios-grid { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); justify-items: center; gap: 16px 0; }
-.ios-key { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12px; color: #fff; letter-spacing: 0; }
-.ios-btn {
-  appearance: none; border: 0; width: 70px; height: 70px; border-radius: 50%; color: #fff; cursor: pointer;
-  display: inline-grid; place-items: center; background: rgba(255, 255, 255, 0.17);
-  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); transition: background-color 0.15s, color 0.15s, transform 0.12s;
-}
-span.ios-btn { cursor: default; }
-.ios-btn:active { transform: scale(0.94); }
-.ios-btn.on { background: #fff; color: #0b1a21; }
-.ios-btn:focus-visible { outline-color: #fff; }
 .end {
   appearance: none; border: 0; margin-top: 22px; width: 70px; height: 70px; border-radius: 50%; cursor: pointer;
   display: grid; place-items: center; color: #fff; background: #ff3b30; transition: transform 0.12s, filter 0.15s;
