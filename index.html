@@ -2,48 +2,67 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>VocalCoach</title>
-    <meta name="theme-color" content="#e9eeec" />
+    <meta name="theme-color" content="#e8452c" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&amp;display=swap" />
   </head>
   <body>
-    <main id="app"></main>
+    <div class="stage" id="stage">
+      <div class="fit" id="fit">
+        <div class="phone" id="phone">
+          <div class="island" aria-hidden="true"></div>
+          <div class="screen" id="screen">
+            <div class="statusbar" aria-hidden="true">
+              <span class="sb-time" id="clock">9:41</span>
+              <span class="sb-icons">
+                <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2.5" width="3" height="9.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+                <svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1.5 4.2a9.5 9.5 0 0 1 13 0M4 7a6 6 0 0 1 8 0"/><circle cx="8" cy="10" r="1.2" fill="currentColor" stroke="none"/></svg>
+                <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x="0.75" y="0.75" width="21.5" height="10.5" rx="3" stroke="currentColor" stroke-width="1.5" opacity="0.5"/><rect x="2.5" y="2.5" width="18" height="7" rx="1.8" fill="currentColor"/><rect x="23.5" y="4" width="2" height="4" rx="1" fill="currentColor" opacity="0.5"/></svg>
+              </span>
+            </div>
 
-    <dialog id="settings">
-      <form method="dialog" id="settings-form">
-        <h2>Settings</h2>
-        <p class="muted small" id="settings-note"></p>
+            <main id="app"></main>
 
-        <label>Gemini API key
-          <input type="password" name="apiKey" autocomplete="off" spellcheck="false" placeholder="Leave empty to use the built-in key" />
-        </label>
-        <p class="muted small">Optional. Stored only in this browser and used instead of the built-in key. Get one at aistudio.google.com.</p>
+            <dialog id="settings">
+              <form method="dialog" id="settings-form">
+                <h2>Settings</h2>
+                <p class="muted small" id="settings-note"></p>
 
-        <label>Coach
-          <select name="persona"></select>
-        </label>
+                <label>Coach
+                  <select name="persona"></select>
+                </label>
 
-        <label>Voice
-          <select name="voice"></select>
-        </label>
+                <label>Voice
+                  <select name="voice"></select>
+                </label>
 
-        <details>
-          <summary>Advanced</summary>
-          <label>Live model
-            <input name="model" spellcheck="false" />
-          </label>
-          <button type="button" class="btn danger small" data-action="reset-deck">Reset word deck</button>
-        </details>
+                <details>
+                  <summary>Advanced</summary>
+                  <label>Your own Gemini API key
+                    <input type="password" name="apiKey" autocomplete="off" spellcheck="false" placeholder="Leave empty to use the built-in key" />
+                  </label>
+                  <p class="muted small">Stored only in this browser and used instead of the built-in key.</p>
+                  <label>Live model
+                    <input name="model" spellcheck="false" />
+                  </label>
+                  <button type="button" class="btn danger small" data-action="reset-deck">Reset word deck</button>
+                </details>
 
-        <div class="dialog-actions">
-          <button value="cancel" class="btn" formnovalidate>Cancel</button>
-          <button value="save" class="btn primary">Save</button>
+                <div class="dialog-actions">
+                  <button value="cancel" class="btn" formnovalidate>Cancel</button>
+                  <button value="save" class="btn primary">Save</button>
+                </div>
+              </form>
+            </dialog>
+
+            <div class="home-indicator" aria-hidden="true"></div>
+          </div>
         </div>
-      </form>
-    </dialog>
+      </div>
+    </div>
 
     <script type="module" src="/src/main.js"></script>
   </body>

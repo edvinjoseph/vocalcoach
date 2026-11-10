@@ -15,6 +15,8 @@ const ALARM_CATCH_UP_MS = 15 * 60 * 1000;
 
 const $app = document.getElementById('app');
 const $dialog = document.getElementById('settings');
+const $phone = document.getElementById('phone');
+const $screen = document.getElementById('screen');
 const $form = document.getElementById('settings-form');
 
 const ringer = new Ringer();
@@ -33,7 +35,13 @@ const persona = () => PERSONAS[settings.persona] || PERSONAS.mom;
 // Any tap unlocks audio, so a later alarm can ring without a fresh gesture.
 document.addEventListener('pointerdown', () => ringer.unlock());
 
+let renderedView = null;
+
 function render() {
+  $phone.classList.toggle('ringing', view === 'ring');
+  $screen.classList.toggle('ringing', view === 'ring');
+  if (view !== renderedView) $screen.querySelector('#app').scrollTop = 0;
+  renderedView = view;
   if (view === 'ring') renderRing();
   else if (view === 'call') renderCall();
   else if (view === 'summary') renderSummary();
@@ -129,7 +137,6 @@ function renderHome() {
 function ring() {
   if (view === 'call' || view === 'ring') return;
   view = 'ring';
-  document.body.classList.add('is-ringing');
   ringer.start();
   document.title = 'Incoming call, VocalCoach';
   try {
@@ -147,7 +154,7 @@ function renderRing() {
       <p class="ring-label">Incoming call</p>
       <h1 class="ring-name">${esc(p.name)}</h1>
       <button class="answer" data-action="answer">${icons.phone(26)} Answer the call</button>
-      <p class="ring-note">There's no decline button.</p>
+      <p class="ring-note">Tap to answer, allow the microphone, and say hello.</p>
     </div>`;
 }
 
@@ -478,7 +485,7 @@ function openSettings(note = '') {
   $form.persona.value = settings.persona;
   $form.voice.value = settings.voice;
   $form.model.value = settings.model || DEFAULT_MODEL;
-  $dialog.showModal();
+  $dialog.show();
 }
 
 $dialog.addEventListener('close', () => {
@@ -509,7 +516,6 @@ $app.addEventListener('click', (e) => {
   else if (action === 'practice') startCall('practice');
   else if (action === 'answer') {
     ringer.stop();
-    document.body.classList.remove('is-ringing');
     document.title = TITLE;
     view = 'home';
     startCall('alarm').then(() => { if (!call && view === 'home') render(); });
@@ -584,4 +590,34 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden && view === 'home') render();
 });
 
+// ── The phone frame ─────────────────────────────────────────────────────────
+
+const $fit = document.getElementById('fit');
+const $clock = document.getElementById('clock');
+const PHONE_W = 414;
+const PHONE_H = 868;
+
+function fitPhone() {
+  if (window.matchMedia('(max-width: 520px)').matches) {
+    $phone.style.transform = '';
+    return;
+  }
+  const s = Math.min(1, (window.innerHeight - 32) / PHONE_H, (window.innerWidth - 32) / PHONE_W);
+  $fit.style.width = `${PHONE_W * s}px`;
+  $fit.style.height = `${PHONE_H * s}px`;
+  $phone.style.transform = `scale(${s})`;
+}
+window.addEventListener('resize', fitPhone);
+fitPhone();
+
+function tickClock() {
+  $clock.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s?[AP]M$/i, '');
+}
+tickClock();
+setInterval(tickClock, 10000);
+
+// The demo opens with the phone ringing. Browsers won't play sound before a
+// tap, so it buzzes silently until the visitor answers.
+view = 'ring';
+document.title = 'Incoming call, VocalCoach';
 render();
