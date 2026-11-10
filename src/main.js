@@ -1,5 +1,5 @@
 import './style.css';
-import './findings.js';
+import { cancelFindingsReveal, isShowingFindings, revealFindings, showDemo } from './findings.js';
 import { loadDeck, saveDeck, resetDeck, pickSessionWords, applyResult, addWord, removeWord, dueLabel, isDue } from './deck.js';
 import { createSession, grade, isPassed, allDone, remaining, currentFocus } from './session.js';
 import { PERSONAS, VOICES, TOOLS, buildPrompt, openingCue, nudgeCue, RESUME_CUE } from './prompt.js';
@@ -41,6 +41,7 @@ document.addEventListener('pointerdown', () => ringer.unlock());
 let renderedView = null;
 
 function render() {
+  if (view !== 'summary') cancelFindingsReveal();
   $phone.classList.toggle('ringing', view === 'ring');
   $screen.classList.toggle('ringing', view === 'ring');
   $screen.classList.toggle('incall', view === 'call');
@@ -206,7 +207,7 @@ function renderHome() {
 // ── Ringing ─────────────────────────────────────────────────────────────────
 
 function ring() {
-  if (view === 'call' || view === 'ring') return;
+  if (isShowingFindings() || view === 'call' || view === 'ring') return;
   view = 'ring';
   ringer.start();
   document.title = 'Incoming call, VocalCoach';
@@ -425,6 +426,7 @@ function endCall(c, outcome, detail = '') {
   view = 'summary';
   document.title = TITLE;
   render();
+  if (outcome !== 'error') revealFindings(1200);
 }
 
 function setStatus(c, text) {
@@ -603,6 +605,10 @@ $app.addEventListener('click', (e) => {
   } else if (action === 'hangup') {
     if (call) endCall(call, 'hungup');
   } else if (action === 'home') {
+    if (view === 'summary' && summary?.outcome !== 'error') {
+      revealFindings();
+      return;
+    }
     view = 'home';
     tab = 'today';
     render();
@@ -672,7 +678,7 @@ $app.addEventListener('submit', (e) => {
 // ── Alarm clock (runs while the tab is open) ────────────────────────────────
 
 setInterval(() => {
-  if (view === 'call' || view === 'ring') return;
+  if (isShowingFindings() || view === 'call' || view === 'ring') return;
   const now = Date.now();
   if (testAlarmAt && now >= testAlarmAt) {
     testAlarmAt = null;
@@ -715,6 +721,20 @@ function fitPhone() {
 }
 window.addEventListener('resize', fitPhone);
 fitPhone();
+
+document.getElementById('replay-demo').addEventListener('click', () => {
+  showDemo();
+  ringer.stop();
+  summary = null;
+  view = 'home';
+  tab = 'today';
+  editing = false;
+  adding = false;
+  declines = 0;
+  testAlarmAt = null;
+  ring();
+  $app.querySelector('[data-action="answer"]')?.focus({ preventScroll: true });
+});
 
 function tickClock() {
   $clock.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s?[AP]M$/i, '');

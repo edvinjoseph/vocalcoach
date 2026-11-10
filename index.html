@@ -11,8 +11,8 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" />
   </head>
   <body>
-    <div class="stage" id="stage">
-      <div class="fit" id="fit">
+    <div class="stage" id="stage" data-phase="demo">
+      <div class="fit" id="fit" tabindex="-1">
         <div class="phone" id="phone">
           <div class="island" aria-hidden="true"></div>
           <div class="screen" id="screen">
@@ -31,13 +31,14 @@
           </div>
         </div>
       </div>
-      <aside class="findings" aria-label="Product findings">
+      <aside class="findings" id="findings" aria-label="Product findings" aria-hidden="true" inert>
         <iframe
           class="findings-frame"
           id="product-findings"
           title="VocalCoach product findings"
           sandbox="allow-scripts"
         ></iframe>
+        <button class="replay-demo" id="replay-demo" type="button">Replay demo</button>
       </aside>
     </div>
 
