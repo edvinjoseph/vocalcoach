@@ -17,7 +17,7 @@ h1,h2,p{margin:0}
 /* Every line on every slide is set at title size. */
 .t{font-size:57px;letter-spacing:-.055em;line-height:1.06;font-weight:550;max-width:900px}
 .t + .t{margin-top:.45em}
-a.t{display:inline-block;color:inherit;text-decoration:underline;text-decoration-thickness:.06em;text-underline-offset:.12em}
+a.t{display:inline-block;max-width:100%;overflow-wrap:anywhere;color:inherit;text-decoration:underline;text-decoration-thickness:.06em;text-underline-offset:.12em}
 a.t:focus-visible{outline:3px solid currentColor;outline-offset:6px}
 
 .s-blue{background:var(--blue);color:var(--white)}
@@ -86,8 +86,8 @@ button:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
 </section>
 
 <section class="slide s-red">
-  <h2 class="t">Each app covers one piece: Duolingo the daily habit, Anki the spaced reviews, voice tutors the speaking</h2>
-  <p class="t dim">VocalCoach puts all three into one morning call about your own words</p>
+  <h2 class="t">A good coach makes time for each learner</h2>
+  <p class="t dim">In VocalCoach, your coach calls you one on one and works on your own words</p>
 </section>
 
 <section class="slide s-yellow">
@@ -96,7 +96,7 @@ button:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
 
 <section class="slide s-blue">
   <h2 class="t">Read the code</h2>
-  <a class="t" href="https://github.com/edvinjoseph/vocalcoach" target="_blank" rel="noopener noreferrer">github.com/edvinjoseph/vocalcoach</a>
+  <a class="t" href="https://github.com/edvinjoseph/vocalcoach" target="_blank" rel="noopener noreferrer">github.com/<wbr>edvinjoseph/<wbr>vocalcoach</a>
 </section>
 
 <nav class="controls" aria-label="Slide controls"><button id="prev" type="button" aria-label="Previous slide" disabled>&larr;</button><button id="next" type="button" aria-label="Next slide">&rarr;</button></nav>
