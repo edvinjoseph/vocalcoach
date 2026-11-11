@@ -98,7 +98,7 @@ test('automatic call, slide to answer, microphone captions, deck and replay work
   activeLive.options.onTranscript('user', 'A candid conversation helped us.');
   assert.ok(node('captions').innerHTML.includes('A candid conversation helped us.'));
   activeLive.options.onGoodbyeDone();
-  advance(1200);
+  advance(400);
   assert.equal(node('stage').dataset.phase, 'findings');
   node('replay-demo').listeners.click();
   assert.equal(node('stage').dataset.phase, 'demo');

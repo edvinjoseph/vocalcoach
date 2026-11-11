@@ -508,7 +508,7 @@ function endCall(c, outcome, detail = '') {
   view = 'summary';
   document.title = TITLE;
   render();
-  if (outcome !== 'error') revealFindings(1200);
+  if (outcome !== 'error') revealFindings(400);
 }
 
 function setStatus(c, text) {
