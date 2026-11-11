@@ -20,6 +20,7 @@ export function createSession(words, mode) {
       sentence: false,
       attempts: 0,
       misses: 0,
+      points: 0,
     })),
   };
 }
@@ -37,14 +38,21 @@ export function findItem(session, word) {
 
 export const isPassed = (item) => item.recall && item.sentence;
 
+export const score = (session) => session.items.reduce((sum, i) => sum + (i.points || 0), 0);
+
 export const allDone = (session) => session.items.every(isPassed);
 
 export const currentFocus = (session) => session.items.find((i) => !isPassed(i)) ?? null;
 
-export function grade(session, word, task, correct) {
+// Guess the Word: a guess on clue 1, 2 or 3 scores 3, 2 or 1; a second round
+// after the word was revealed scores 1.
+export function grade(session, word, task, correct, clues = 1) {
   const item = findItem(session, word);
   if (!item) return null;
   item.attempts += 1;
+  if (correct && task === 'recall' && !item.recall) {
+    item.points = item.misses ? 1 : Math.max(1, 4 - Math.min(3, Math.max(1, Number(clues) || 1)));
+  }
   if (correct) item[task] = true;
   else item.misses += 1;
   return item;

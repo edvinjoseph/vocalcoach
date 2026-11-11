@@ -3,7 +3,7 @@ import homeScreenImage from './assets/ios-home-screen.webp';
 import { wireAnswerSlider } from './answer-slider.js';
 import { cancelFindingsReveal, isShowingFindings, revealFindings, showDemo } from './findings.js';
 import { loadDeck, saveDeck, resetDeck, pickSessionWords, applyResult, addWord, removeWord, dueLabel, isDue } from './deck.js';
-import { createSession, grade, isPassed, allDone, remaining, currentFocus } from './session.js';
+import { createSession, grade, isPassed, allDone, remaining, currentFocus, score } from './session.js';
 import { PERSONAS, VOICES, TOOLS, buildPrompt, openingCue, nudgeCue, RESUME_CUE } from './prompt.js';
 import { AudioIO, LiveCall } from './live.js';
 import { Ringer, nextOccurrence } from './ringer.js';
@@ -418,7 +418,7 @@ function handleTool(c, name, args) {
   if (name === 'grade_word') {
     const task = args.task === 'recall' || args.task === 'sentence' ? args.task : null;
     if (!task) return { response: { ok: false, error: 'task must be "recall" or "sentence"' } };
-    const item = grade(c.session, args.word, task, args.correct === true);
+    const item = grade(c.session, args.word, task, args.correct === true, args.clues);
     if (!item) {
       return {
         response: {
@@ -428,10 +428,10 @@ function handleTool(c, name, args) {
         },
       };
     }
-    addEvent(c, `${item.word} · ${task === 'recall' ? 'said the word' : 'own sentence'} ${args.correct ? '✓' : '✗'}${args.note ? ` · ${args.note}` : ''}`, args.correct);
+    addEvent(c, `${item.word} · ${task === 'recall' ? 'guess' : 'bonus sentence'} ${args.correct ? '✓' : '✗'}${args.note ? ` · ${args.note}` : ''}`, args.correct);
     renderProgress(c);
     return {
-      response: { ok: true, word: item.word, word_passed: isPassed(item), remaining: remaining(c.session), all_done: allDone(c.session) },
+      response: { ok: true, word: item.word, points_for_word: item.points, total_score: score(c.session), word_passed: isPassed(item), remaining: remaining(c.session), all_done: allDone(c.session) },
     };
   }
 
@@ -585,10 +585,10 @@ function renderProgress(c) {
       ${shown.recall ? esc(shown.word) : esc(blanks(shown.word))}
     </div>
     <div class="steps">
-      <span class="${shown.recall ? 'ok' : ''}">${shown.recall ? icons.check(14) : ''}Said it</span>
-      <span class="${shown.sentence ? 'ok' : ''}">${shown.sentence ? icons.check(14) : ''}Used it in a sentence</span>
+      <span class="${shown.recall ? 'ok' : ''}">${shown.recall ? icons.check(14) : ''}Guessed it</span>
+      <span class="${shown.sentence ? 'ok' : ''}">${shown.sentence ? icons.check(14) : ''}Bonus sentence</span>
     </div>
-    <div class="tally-line">${done} of ${total} words passed</div>`;
+    <div class="tally-line">${score(c.session)} points · ${done} of ${total} words</div>`;
 }
 
 function renderCaptions(c) {

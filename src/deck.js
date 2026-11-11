@@ -32,7 +32,42 @@ const SEED = [
   ['scrutinize', 'to examine something very closely', 'The editor will scrutinize every number in the report.'],
   ['lucid', 'clear and easy to understand; or thinking clearly', 'Even at 2 a.m. her explanation was lucid.'],
   ['mundane', 'ordinary and not interesting', 'I find mundane chores like folding laundry oddly relaxing.'],
+  ['gregarious', 'enjoying the company of other people', 'My gregarious uncle knows everyone at the market by name.'],
+  ['nonchalant', 'calm and relaxed, as if you do not care', 'He was nonchalant about missing the bus, as if he had planned it.'],
+  ['quirky', 'unusual in an interesting or charming way', 'The cafe has quirky chairs that all came from different flea markets.'],
+  ['vivid', 'very bright, clear or detailed', 'I still have a vivid memory of my first day at school.'],
+  ['ominous', 'suggesting that something bad is going to happen', 'The ominous clouds made us pack up the picnic early.'],
+  ['whimsical', 'playful and fanciful, in an unusual way', 'Her whimsical drawings have cats wearing tiny hats.'],
+  ['diligent', 'working carefully and with steady effort', 'A diligent student, he reviewed his notes every evening.'],
+  ['obsolete', 'no longer used because something newer exists', 'Fax machines are almost obsolete in most offices.'],
+  ['skeptical', 'not easily convinced; having doubts', 'I was skeptical when the ad promised six-pack abs in a week.'],
+  ['spontaneous', 'done on impulse, without planning', 'We took a spontaneous trip to the beach on Sunday.'],
+  ['nostalgia', 'a warm, wistful feeling for the past', 'That old cartoon theme fills me with nostalgia.'],
+  ['zealous', 'full of strong energy and enthusiasm for something', 'The zealous fan painted his whole face in team colours.'],
+  ['aloof', 'distant and not friendly or involved', 'The new cat stayed aloof for a week before sitting on my lap.'],
+  ['futile', 'having no chance of success', 'Trying to keep the toddler clean at dinner was futile.'],
+  ['impeccable', 'perfect, with no mistakes', 'Her timing was impeccable; she arrived as the cake came out.'],
+  ['inevitable', 'certain to happen and impossible to avoid', 'With two dogs in the house, mud on the floor is inevitable.'],
+  ['lethargic', 'tired and without energy', 'I feel lethargic after a big lunch.'],
+  ['mediocre', 'only average, not very good', 'The film was mediocre, but the popcorn was great.'],
+  ['notorious', 'famous for something bad', 'That corner is notorious for traffic jams.'],
+  ['oblivious', 'not aware of what is happening around you', 'He was oblivious to the dog stealing his sandwich.'],
+  ['peculiar', 'strange or unusual', 'There was a peculiar smell coming from the fridge.'],
+  ['reluctant', 'unwilling and slow to do something', 'She was reluctant to get out of her warm bed.'],
+  ['tranquil', 'calm and peaceful', 'The lake was tranquil at sunrise.'],
+  ['versatile', 'able to be used in many different ways', 'A good knife is the most versatile tool in the kitchen.'],
 ];
+
+const norm = (s) => String(s || '').trim().toLowerCase();
+
+function shuffle(list) {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 let idCounter = 0;
 const newId = () => `w${Date.now().toString(36)}${(idCounter++).toString(36)}`;
@@ -43,7 +78,16 @@ function makeWord(word, definition, example = '') {
 
 export function loadDeck() {
   const deck = readJSON(DECK_KEY, null);
-  if (Array.isArray(deck) && deck.length) return deck;
+  if (Array.isArray(deck) && deck.length) {
+    // Decks saved before the word list grew pick up the new starter words.
+    const have = new Set(deck.map((w) => norm(w.word)));
+    const missing = SEED.filter(([w]) => !have.has(norm(w)));
+    if (missing.length) {
+      deck.push(...missing.map(([w, d, e]) => makeWord(w, d, e)));
+      saveDeck(deck);
+    }
+    return deck;
+  }
   const seeded = SEED.map(([w, d, e]) => makeWord(w, d, e));
   saveDeck(seeded);
   return seeded;
@@ -59,7 +103,6 @@ export function resetDeck() {
   return seeded;
 }
 
-const norm = (s) => String(s || '').trim().toLowerCase();
 
 /** Adds a word in place. Returns { ok, word } or { ok:false, error }. */
 export function addWord(deck, { word, definition, example }) {
@@ -96,7 +139,8 @@ export function pickSessionWords(deck, now, mode) {
 
   const due = deck.filter((w) => isDue(w, now)).sort((a, b) => a.dueAt - b.dueAt);
   const picked = due.slice(0, cap);
-  const fresh = deck.filter((w) => w.box === 0);
+  // New words come in a random order so every call plays different words.
+  const fresh = shuffle(deck.filter((w) => w.box === 0));
   for (const w of fresh) {
     if (picked.length >= cap || picked.filter((p) => p.box === 0).length >= maxNew) break;
     picked.push(w);

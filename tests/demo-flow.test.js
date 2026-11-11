@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import vm from 'node:vm';
 import { icons } from '../src/icons.js';
 import { wireAnswerSlider } from '../src/answer-slider.js';
-import { createSession, currentFocus, isPassed } from '../src/session.js';
+import { createSession, currentFocus, isPassed, score } from '../src/session.js';
 
 test('automatic call, slide to answer, microphone captions, deck and replay work together', async () => {
   const nodes = new Map();
@@ -58,7 +58,7 @@ test('automatic call, slide to answer, microphone captions, deck and replay work
   class Ringer { start() {} stop() {} unlock() {} }
   const context = vm.createContext({
     console, Date, String, Math, Set, Array, Object, RegExp,
-    icons, wireAnswerSlider, createSession, currentFocus, isPassed, AudioIO, LiveCall, Ringer,
+    icons, wireAnswerSlider, createSession, currentFocus, isPassed, score, AudioIO, LiveCall, Ringer,
     homeScreenImage: 'home.webp',
     findingsHtml: await fs.readFile(new URL('../deliverables/vocalcoach-findings.html', import.meta.url), 'utf8'),
     document: { title: '', hidden: false, getElementById: node, addEventListener() {} },

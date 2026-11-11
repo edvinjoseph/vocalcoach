@@ -22,12 +22,15 @@ laptop speakers.
 
 ## How a call works
 
-Each call covers a small set of words: due reviews first, then new words. Practice calls take up to 5 words;
-alarm calls take up to 3. Every word has to clear two **productive** tasks:
+Each call is a game of **Guess the Word** over a small set of words: due reviews first, then new words drawn in
+random order from 40 starter words. Practice calls take up to 5 words; alarm calls take up to 3. Every word is a
+round with two **productive** tasks:
 
-1. **Say it:** the coach gives the meaning (or a sentence with a blank), and you say the word.
-2. **Use it:** you use the word in a sentence of your own, with enough context to show you understand it.
-   Reciting the definition or repeating the example doesn't count.
+1. **Guess it:** the coach gives up to three clues, each easier than the last, and you say the word. A guess on
+   clue 1, 2 or 3 scores 3, 2 or 1 points. After three misses the coach reveals the word and replays it later
+   for 1 point.
+2. **Bonus sentence:** you use the word in a sentence of your own, with enough context to show you understand
+   it. Reciting the definition or repeating the example doesn't count.
 
 The coach grades every answer through a `grade_word` tool call, and the app keeps the score. The coach can only
 end the call with `end_call`, which the app refuses until every word is passed. This is the same gate as
@@ -78,7 +81,7 @@ native app path that momsalarm already solved.
 | `src/main.js` | Screens (home, ring, call, summary), call controller, tool handling, alarm clock |
 | `src/live.js` | Gemini Live WebSocket session, mic downsampling worklet, PCM player, goodbye sequencing |
 | `src/prompt.js` | Coach personas, system prompt, tool declarations, nudge and opening cues |
-| `src/session.js` | Per-call progress (recall/sentence per word); the source of truth for `end_call` |
+| `src/session.js` | Per-call progress and points (guess/sentence per word); the source of truth for `end_call` |
 | `src/deck.js` | Word deck, starter words, Leitner scheduling |
 | `src/ringer.js` | WebAudio ringtone and next-alarm time |
 | `src/storage.js` | localStorage settings, study days, streak |

@@ -68,21 +68,22 @@ ${situation}
 ## Today's words
 ${wordList(session)}
 ${resumeSection}
-## How to run each word
-Work through the words in order, one at a time, one question at a time.
+## The game: Guess the Word
+Each word is one quick round. Play the words in order, one at a time.
 
-NEW words:
-1. Introduce it: say the word clearly, give the meaning in plain words and one
-   short example.
-2. Ask them to use it in a sentence of their own, ideally about their own life
-   or their day (task "sentence").
-3. Later in the call, after at least one other word, come back and ask the
-   recall question (task "recall").
-
-REVIEW words:
-1. Recall first: describe the meaning, or say a sentence with a "blank" where
-   the word goes, WITHOUT saying the word. They have to say the word (task "recall").
-2. Then ask them to use it in their own sentence (task "sentence").
+1. Clues. Give ONE clue, then wait for a guess. Never say the word itself.
+   Make clues vivid and varied: a funny situation, a sentence with a "blank"
+   where the word goes, an opposite, a famous person or thing it describes.
+   Wrong guess? Give the next, easier clue. The third clue includes the first
+   letter and the number of letters. Points: guessed on clue 1 = 3 points,
+   clue 2 = 2 points, clue 3 = 1 point (task "recall", with "clues" = how many
+   clues you gave).
+2. No luck after three clues: tell them the word, its meaning in plain words,
+   make them say it back, grade recall as incorrect, and come back to it later
+   for one more guess round worth 1 point.
+3. Bonus round: once they have the word, ask for a quick sentence of their own
+   using it, ideally about their own life or their day (task "sentence").
+4. Keep score out loud like a game-show host: "That's 3 points, you're on 5!"
 
 Keep every turn short: one to three sentences. This is a phone call, not a lecture.
 
@@ -125,8 +126,8 @@ Speak English.`;
 export function openingCue(mode, session) {
   const n = session.items.length;
   return mode === 'alarm'
-    ? `(System note, not the user: the user just answered the phone. This is their wake-up alarm and they may be half asleep. Greet them in character in one or two sentences, tell them ${n} word${n === 1 ? '' : 's'} stand between them and turning the alarm off, and start on the first word.)`
-    : `(System note, not the user: the user just started a practice call with ${n} word${n === 1 ? '' : 's'}. Greet them briefly in character and start on the first word.)`;
+    ? `(System note, not the user: the user just answered the phone. This is their wake-up alarm and they may be half asleep. Greet them in character in one or two sentences, tell them it's Guess the Word: ${n} word${n === 1 ? '' : 's'} stand between them and turning the alarm off. Give the first clue.)`
+    : `(System note, not the user: the user just started a practice call with ${n} word${n === 1 ? '' : 's'}. Greet them briefly in character, say it's Guess the Word, and give the first clue.)`;
 }
 
 export const RESUME_CUE =
@@ -148,9 +149,10 @@ export const TOOLS = [
         task: {
           type: 'STRING',
           enum: ['recall', 'sentence'],
-          description: 'recall = they had to say the word from its meaning; sentence = they had to use it in their own sentence',
+          description: 'recall = they had to guess the word from your clues; sentence = they had to use it in their own sentence',
         },
         correct: { type: 'BOOLEAN', description: 'Whether the answer meets the bar in your instructions' },
+        clues: { type: 'INTEGER', description: 'For recall: how many clues you gave before this guess (1 to 3)' },
         note: { type: 'STRING', description: 'Short reason, e.g. what was wrong' },
       },
       required: ['word', 'task', 'correct'],
