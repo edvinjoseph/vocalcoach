@@ -40,7 +40,9 @@ As in momsalarm:
 - if the line drops, it calls back and picks up where it left off;
 - there is a hard stop at 10 minutes.
 
-The call screen has mute, end and audio. Audio opens a microphone picker, and the choice is remembered. If the
+The call screen has mute, end and audio. Calls use the browser's default microphone, which follows the system
+default, and reopen it whenever a device is plugged in or removed. Audio opens a microphone picker that overrides
+the default until the next device change. If the
 chosen input is silent, or Gemini transcribes none of what it hears, the status line turns amber, says so, and
 opens the same picker when tapped.
 

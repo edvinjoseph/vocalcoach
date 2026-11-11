@@ -334,14 +334,33 @@ async function startCall(mode) {
   render();
 
   try {
-    await audio.startMic({ deviceId: settings.micId || '' });
+    await audio.startMic({ deviceId: '' });
   } catch (err) {
     endCall(c, 'error', `Microphone unavailable: ${err?.message || err}`);
     return;
   }
   if (c.ended) return;
+  watchMicDevices(c);
   dial(c);
   c.tick = setInterval(() => tick(c), 1000);
+}
+
+// ── Microphone routing ──────────────────────────────────────────────────────
+// Calls use the browser's default mic, which follows the system default. An
+// open mic does not follow a new default by itself, so whenever a device is
+// plugged in or removed, the call reopens the default.
+
+function watchMicDevices(c) {
+  c.onDevices = () => {
+    if (call !== c || c.ended) return;
+    c.micProblem = '';
+    c.audio.restartMic({ deviceId: '' }).catch(() => {});
+  };
+  globalThis.navigator?.mediaDevices?.addEventListener?.('devicechange', c.onDevices);
+}
+
+function unwatchMicDevices(c) {
+  globalThis.navigator?.mediaDevices?.removeEventListener?.('devicechange', c.onDevices);
 }
 
 function dial(c) {
@@ -462,6 +481,7 @@ function endCall(c, outcome, detail = '') {
   if (c.ended) return;
   c.ended = true;
   clearInterval(c.tick);
+  unwatchMicDevices(c);
   c.live?.disconnect();
   c.audio.close();
 
@@ -680,8 +700,6 @@ async function switchMic(c, deviceId) {
   c.picker = null;
   renderPicker(c);
   c.micProblem = '';
-  settings.micId = deviceId;
-  saveSettings(settings);
   try {
     await c.audio.restartMic({ deviceId });
   } catch (err) {
