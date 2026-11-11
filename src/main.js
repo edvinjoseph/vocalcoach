@@ -334,7 +334,7 @@ async function startCall(mode) {
   render();
 
   try {
-    await audio.startMic({ deviceId: '' });
+    await audio.startMic({ deviceId: 'default' });
   } catch (err) {
     endCall(c, 'error', `Microphone unavailable: ${err?.message || err}`);
     return;
@@ -354,7 +354,7 @@ function watchMicDevices(c) {
   c.onDevices = () => {
     if (call !== c || c.ended) return;
     c.micProblem = '';
-    c.audio.restartMic({ deviceId: '' }).catch(() => {});
+    c.audio.restartMic({ deviceId: 'default' }).catch(() => {});
   };
   globalThis.navigator?.mediaDevices?.addEventListener?.('devicechange', c.onDevices);
 }
