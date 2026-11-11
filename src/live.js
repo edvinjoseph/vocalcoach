@@ -232,7 +232,9 @@ export class AudioIO {
       audio: {
         echoCancellation: next.processing, noiseSuppression: next.processing,
         autoGainControl: next.processing, channelCount: 1,
-        ...(next.deviceId ? { deviceId: { exact: next.deviceId } } : {}),
+        // With no device named, Chromium applies its own learned mic ranking rather
+        // than the system default, so ask for the system default by name.
+        deviceId: next.deviceId ? { exact: next.deviceId } : { ideal: 'default' },
       },
     });
     let stream;
